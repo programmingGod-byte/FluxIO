@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/bench_fluxio.dir/benchmark/bench_fluxio.cpp.o -o bench_fluxio  -lpthread /usr/lib/x86_64-linux-gnu/liburing.so 

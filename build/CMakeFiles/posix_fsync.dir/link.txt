@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/posix_fsync.dir/examples/posix_fsync.cpp.o -o posix_fsync  -lpthread /usr/lib/x86_64-linux-gnu/liburing.so 

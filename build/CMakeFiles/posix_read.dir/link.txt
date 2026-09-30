@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/posix_read.dir/examples/posix_read.cpp.o -o posix_read  -lpthread /usr/lib/x86_64-linux-gnu/liburing.so 

@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/io_uring_fsync.dir/examples/io_uring_fsync.cpp.o -o io_uring_fsync  -lpthread /usr/lib/x86_64-linux-gnu/liburing.so 
