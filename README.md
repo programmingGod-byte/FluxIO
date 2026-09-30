@@ -110,10 +110,10 @@ All three benchmarks executed on the exact same physical NVMe drive using 4KB Di
 
 | Workload (Mode 1 Peak) | FluxIO (`io_uring` + `SQPOLL`) | Golang (`os.O_DIRECT` + Goroutines) | Boost.Asio (C++20 File) | FluxIO Advantage |
 | :--- | :---: | :---: | :---: | :---: |
-| **Sequential Write** | **504,531.2 IOPS** (1,970.83 MiB/s) | 229,638.7 IOPS (897.03 MiB/s) | 63,549.8 IOPS (248.24 MiB/s) | **2.20× vs Go &bull; 7.94× vs Asio** |
-| **Random Write** | **436,783.5 IOPS** (1,706.19 MiB/s) | 217,250.8 IOPS (848.64 MiB/s) | 51,307.6 IOPS (200.42 MiB/s) | **2.01× vs Go &bull; 8.51× vs Asio** |
-| **Sequential Read** | **248,558.2 IOPS** (970.93 MiB/s) | 303,164.1 IOPS (1,184.23 MiB/s) | 15,994.1 IOPS (62.48 MiB/s) | **0.82× vs Go** &bull; **15.54× vs Asio** |
-| **Random Read** | **404,212.7 IOPS** (1,578.96 MiB/s) | 326,340.6 IOPS (1,274.77 MiB/s) | 13,230.4 IOPS (51.68 MiB/s) | **1.24× vs Go &bull; 30.55× vs Asio** |
+| **Sequential Write** | **715,827.6 IOPS** (2,796.2 MiB/s) | 239,383.5 IOPS (935.1 MiB/s) | 86,783.1 IOPS (339.0 MiB/s) | **2.99× vs Go &bull; 8.25× vs Asio** |
+| **Random Write** | **542,998.1 IOPS** (2,121.1 MiB/s) | 248,800.8 IOPS (971.9 MiB/s) | 86,821.4 IOPS (339.1 MiB/s) | **2.18× vs Go &bull; 6.25× vs Asio** |
+| **Sequential Read** | **278,054.8 IOPS** (1,086.2 MiB/s) | 302,860.5 IOPS (1,183.0 MiB/s) | 43,625.2 IOPS (170.4 MiB/s) | **0.92× vs Go &bull; 6.37× vs Asio** |
+| **Random Read** | **434,377.9 IOPS** (1,696.8 MiB/s) | 308,629.1 IOPS (1,205.6 MiB/s) | 22,192.8 IOPS (86.7 MiB/s) | **1.41× vs Go &bull; 19.57× vs Asio** |
 
 *Note: FluxIO completely bypasses kernel context switches and userspace threading overhead using kernel-side submission polling (`SQPOLL`), executing orders of magnitude faster than traditional event-loop or goroutine thread-pool driven asynchronous I/O models.*
 
