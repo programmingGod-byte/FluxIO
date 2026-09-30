@@ -337,6 +337,7 @@
       <ul class="nav-sub expanded">
         <li><a href="#overview" class="nav-link active" onclick="showSection('overview', this)">Overview</a></li>
         <li><a href="#quickstart" class="nav-link" onclick="showSection('quickstart', this)">Build & Quickstart</a></li>
+        <li><a href="#integration" class="nav-link" onclick="showSection('integration', this)">Integration Guide</a></li>
         <li><a href="#directory-tree" class="nav-link" onclick="showSection('directory-tree', this)">Project Structure</a></li>
       </ul>
     </div>
@@ -440,6 +441,47 @@ cmake --build build
 
 # 6. Run the Full QD Matrix Benchmark (QD1 to QD128)
 sudo ./build/bench_fluxio</code></pre>
+    </section>
+
+    <!-- INTEGRATION -->
+    <section id="integration" class="section">
+      <h1>Integration & Installation Guide</h1>
+      <p>FluxIO is a header-only, zero-dependency C++20 library (with optional runtime linking to <code>liburing</code> for Linux <code>io_uring</code> SQPOLL engine).</p>
+
+      <h2>Include Styles</h2>
+      <p>Any of the following include paths work out-of-the-box:</p>
+      <pre><code class="language-cpp">#include &lt;fluxio.h&gt;              // Standard top-level include
+#include &lt;flux_io.h&gt;             // Alternative top-level include
+#include &lt;fluxio/fluxio.h&gt;       // Namespaced include
+#include &lt;fluxio/flux_io.h&gt;      // Master backend selector header</code></pre>
+
+      <h2>Method 1: Modern CMake FetchContent (Recommended)</h2>
+      <p>Integrate FluxIO directly into your project without manual git cloning:</p>
+      <pre><code class="language-cmake">include(FetchContent)
+
+FetchContent_Declare(
+    fluxio
+    GIT_REPOSITORY https://github.com/programmingGod-byte/FluxIO.git
+    GIT_TAG        main
+)
+FetchContent_MakeAvailable(fluxio)
+
+# Link to your application target
+add_executable(my_app main.cpp)
+target_link_libraries(my_app PRIVATE FluxIO::fluxio)</code></pre>
+
+      <h2>Method 2: CMake add_subdirectory / Submodule</h2>
+      <p>If you cloned FluxIO into your project repository:</p>
+      <pre><code class="language-cmake">add_subdirectory(third_party/FluxIO)
+target_link_libraries(my_app PRIVATE FluxIO::fluxio)</code></pre>
+
+      <h2>Method 3: Direct Drop-In (Manual Copy)</h2>
+      <pre><code class="language-bash">g++ -std=c++20 -O3 -I./include main.cpp -o my_app -luring -lpthread</code></pre>
+
+      <h2>Method 4: System-wide Installation</h2>
+      <pre><code class="language-bash">cd FluxIO
+cmake -B build -S .
+sudo cmake --install build</code></pre>
     </section>
 
     <!-- DIRECTORY STRUCTURE -->

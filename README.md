@@ -119,6 +119,78 @@ All three benchmarks executed on the exact same physical NVMe drive using 4KB Di
 
 ---
 
+## Integration & Installation Guide
+
+FluxIO is a header-only, zero-dependency C++20 library (with optional runtime linking to `liburing` for Linux `io_uring` SQPOLL engine).
+
+### Available Include Styles
+All of the following include paths work out of the box:
+```cpp
+#include <fluxio.h>              // Standard top-level include
+#include <flux_io.h>             // Alternative top-level include
+#include <fluxio/fluxio.h>       // Namespaced include
+#include <fluxio/flux_io.h>      // Master backend selector header
+```
+
+---
+
+### Method 1: Modern CMake `FetchContent` (Recommended)
+Add FluxIO directly to your `CMakeLists.txt` without needing manual downloads:
+
+```cmake
+include(FetchContent)
+
+FetchContent_Declare(
+    fluxio
+    GIT_REPOSITORY https://github.com/programmingGod-byte/FluxIO.git
+    GIT_TAG        main
+)
+FetchContent_MakeAvailable(fluxio)
+
+# Link to your target
+add_executable(my_storage_app main.cpp)
+target_link_libraries(my_storage_app PRIVATE FluxIO::fluxio)
+```
+
+---
+
+### Method 2: CMake `add_subdirectory` / Git Submodule
+If you cloned FluxIO as a submodule in `third_party/FluxIO`:
+
+```cmake
+add_subdirectory(third_party/FluxIO)
+
+target_link_libraries(my_storage_app PRIVATE FluxIO::fluxio)
+```
+
+---
+
+### Method 3: Direct Drop-In (Manual Copy)
+Copy the `include/` directory into your project and configure your build:
+
+```bash
+# Direct compilation with g++
+g++ -std=c++20 -O3 -I./include main.cpp -o my_app -luring -lpthread
+```
+
+---
+
+### Method 4: System Installation via CMake
+Install FluxIO into `/usr/local/include` and register the CMake package config:
+
+```bash
+cd FluxIO
+cmake -B build -S .
+sudo cmake --install build
+```
+
+Then in any project:
+```cmake
+find_package(FluxIO REQUIRED)
+target_link_libraries(my_storage_app PRIVATE FluxIO::fluxio)
+```
+
+---
 ## Code Examples & Usage Guide
 
 All example programs strictly include and use the top-level master header `<fluxio/flux_io.h>`.

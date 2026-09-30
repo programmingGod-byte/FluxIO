@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/posix_write.dir/examples/posix_write.cpp.o -o posix_write  -lpthread /usr/lib/x86_64-linux-gnu/liburing.so 

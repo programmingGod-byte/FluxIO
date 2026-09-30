@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_library(fluxio INTERFACE)
+add_library(FluxIO::fluxio ALIAS fluxio)
 target_include_directories(fluxio INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
@@ -84,3 +85,18 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/examples/posix_fsync.cpp")
     add_executable(posix_fsync examples/posix_fsync.cpp)
     target_link_libraries(posix_fsync PRIVATE fluxio)
 endif()
+
+# Installation & Export
+include(GNUInstallDirs)
+install(TARGETS fluxio
+    EXPORT FluxIOTargets
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+install(DIRECTORY include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+install(EXPORT FluxIOTargets
+    FILE FluxIOTargets.cmake
+    NAMESPACE FluxIO::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/FluxIO
+)

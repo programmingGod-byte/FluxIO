@@ -1,2 +1,7 @@
+build/
+*.dat
+*.bin
+compile_commands.json
+.cache/
 /AsioBenchmark/
 /GolangBenchmark/

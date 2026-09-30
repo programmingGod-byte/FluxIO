@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/io_uring_read.dir/examples/io_uring_read.cpp.o -o io_uring_read  -lpthread /usr/lib/x86_64-linux-gnu/liburing.so 

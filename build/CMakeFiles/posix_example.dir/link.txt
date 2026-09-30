@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/posix_example.dir/examples/posix_example.cpp.o -o posix_example  -lpthread /usr/lib/x86_64-linux-gnu/liburing.so 
