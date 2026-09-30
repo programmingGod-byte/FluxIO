@@ -5,7 +5,7 @@
 #include "../ring/ring_buffer.h"
 #include "../ring/sq_ring.h"
 #include "../ring/cq_ring.h"
-#include "../util/aethon.h"
+#include "../util/fluxio_macros.h"
 #include <fcntl.h>
 #include <unistd.h>
 #include <array>
@@ -39,12 +39,12 @@ public:
     }
   }
 
-  AETHON_ALWAYS_INLINE bool setup_io_uring() noexcept { return true; }
-  AETHON_ALWAYS_INLINE bool setup() noexcept { return true; }
+  FLUXIO_ALWAYS_INLINE bool setup_io_uring() noexcept { return true; }
+  FLUXIO_ALWAYS_INLINE bool setup() noexcept { return true; }
 
-  AETHON_ALWAYS_INLINE bool register_file(size_t slot, const char *path) noexcept {
-    AETHON_SAFE_CHECK(slot < num_files, "slot out of bounds in register_file");
-    AETHON_SAFE_CHECK(path != nullptr, "path cannot be null in register_file");
+  FLUXIO_ALWAYS_INLINE bool register_file(size_t slot, const char *path) noexcept {
+    FLUXIO_SAFE_CHECK(slot < num_files, "slot out of bounds in register_file");
+    FLUXIO_SAFE_CHECK(path != nullptr, "path cannot be null in register_file");
 
     if (slot >= num_files) return false;
     int fd = ::open(path, O_RDWR | O_CREAT | O_DIRECT, 0644);
@@ -55,7 +55,7 @@ public:
 
     registered_fds[slot] = fd;
 
-    if constexpr (AETHON_LIKELY(allow_block_allocation)) {
+    if constexpr (FLUXIO_LIKELY(allow_block_allocation)) {
       fileBlockManager.register_file(slot, fd);
     }
 
@@ -65,42 +65,42 @@ public:
     return true;
   }
 
-  AETHON_ALWAYS_INLINE int get_fd(size_t file_slot) const noexcept {
+  FLUXIO_ALWAYS_INLINE int get_fd(size_t file_slot) const noexcept {
     return registered_fds[file_slot];
   }
 
-  AETHON_ALWAYS_INLINE uint32_t file_count() const noexcept {
+  FLUXIO_ALWAYS_INLINE uint32_t file_count() const noexcept {
     return num_registered_files;
   }
 
-  AETHON_ALWAYS_INLINE bool try_push_request(IORequest &&request) noexcept {
+  FLUXIO_ALWAYS_INLINE bool try_push_request(IORequest &&request) noexcept {
     return sq_ring.push(std::move(request));
   }
 
-  AETHON_ALWAYS_INLINE bool try_push_request(const IORequest &request) noexcept {
+  FLUXIO_ALWAYS_INLINE bool try_push_request(const IORequest &request) noexcept {
     return sq_ring.push(request);
   }
 
-  AETHON_ALWAYS_INLINE void push_request(IORequest &&request) noexcept {
+  FLUXIO_ALWAYS_INLINE void push_request(IORequest &&request) noexcept {
     uint32_t backoff = 1;
     while (!sq_ring.push(std::move(request))) {
       for (uint32_t i = 0; i < backoff; ++i) {
-        AETHON_PAUSE_CPU_INSTRUCTION;
+        FLUXIO_PAUSE_CPU_INSTRUCTION;
       }
       if (backoff < 16) backoff <<= 1;
     }
   }
 
-  AETHON_ALWAYS_INLINE void push_request(const IORequest &request) noexcept {
+  FLUXIO_ALWAYS_INLINE void push_request(const IORequest &request) noexcept {
     IORequest req = request;
     push_request(std::move(req));
   }
 
-  AETHON_ALWAYS_INLINE void submit() noexcept {
+  FLUXIO_ALWAYS_INLINE void submit() noexcept {
     process_submissions();
   }
 
-  AETHON_ALWAYS_INLINE void pool_completion() noexcept {
+  FLUXIO_ALWAYS_INLINE void poll_completion() noexcept {
     // POSIX backend handles submissions synchronously into cq_ring
   }
 
@@ -110,7 +110,7 @@ public:
       IORequest *req = sq_ring.peek();
       if (!req) break;
 
-      AETHON_SAFE_CHECK(req->file_slot < num_registered_files, "file_slot out of bounds");
+      FLUXIO_SAFE_CHECK(req->file_slot < num_registered_files, "file_slot out of bounds");
       int fd = registered_fds[req->file_slot];
 
       IoCompletion comp{};
@@ -120,17 +120,17 @@ public:
       comp.op_type = req->op_type;
 
       if (req->op_type == Type::Write) {
-        AETHON_SAFE_CHECK(req->data_src != nullptr, "data_src cannot be null");
-        AETHON_SAFE_CHECK(req->length > 0, "write length must be > 0");
-        if constexpr (AETHON_LIKELY(allow_block_allocation)) {
+        FLUXIO_SAFE_CHECK(req->data_src != nullptr, "data_src cannot be null");
+        FLUXIO_SAFE_CHECK(req->length > 0, "write length must be > 0");
+        if constexpr (FLUXIO_LIKELY(allow_block_allocation)) {
           fileBlockManager.ensure_allocation(req->file_slot, req->file_offset, req->length);
         }
         ssize_t w = ::pwrite(fd, req->data_src, req->length, req->file_offset);
         comp.result = w;
         comp.failed = (w < 0);
       } else if (req->op_type == Type::Read) {
-        AETHON_SAFE_CHECK(req->data_src != nullptr, "destination buffer cannot be null");
-        AETHON_SAFE_CHECK(req->length > 0, "read length must be > 0");
+        FLUXIO_SAFE_CHECK(req->data_src != nullptr, "destination buffer cannot be null");
+        FLUXIO_SAFE_CHECK(req->length > 0, "read length must be > 0");
         ssize_t r = ::pread(fd, const_cast<void*>(req->data_src), req->length, req->file_offset);
         comp.result = r;
         comp.failed = (r < 0);
@@ -148,23 +148,23 @@ public:
 
       sq_ring.consume();
       while (!cq_ring.push(std::move(comp))) {
-        AETHON_PAUSE_CPU_INSTRUCTION;
+        FLUXIO_PAUSE_CPU_INSTRUCTION;
       }
       ++processed;
     }
     return static_cast<int>(processed);
   }
 
-  AETHON_ALWAYS_INLINE bool try_pop_completion(IoCompletion &out) noexcept {
+  FLUXIO_ALWAYS_INLINE bool try_pop_completion(IoCompletion &out) noexcept {
     return cq_ring.pop(out);
   }
 
-  AETHON_ALWAYS_INLINE bool read_block(uint16_t file_slot, void *data_dest,
+  FLUXIO_ALWAYS_INLINE bool read_block(uint16_t file_slot, void *data_dest,
                                        size_t size, uint64_t file_offset,
                                        uint64_t user_data) {
-    AETHON_SAFE_CHECK(file_slot < num_registered_files, "file_slot out of bounds in read_block");
-    AETHON_SAFE_CHECK(data_dest != nullptr, "data_dest cannot be null in read_block");
-    AETHON_SAFE_CHECK(size > 0, "read size must be > 0");
+    FLUXIO_SAFE_CHECK(file_slot < num_registered_files, "file_slot out of bounds in read_block");
+    FLUXIO_SAFE_CHECK(data_dest != nullptr, "data_dest cannot be null in read_block");
+    FLUXIO_SAFE_CHECK(size > 0, "read size must be > 0");
 
     IORequest req{};
     req.op_type = Type::Read;
@@ -181,8 +181,8 @@ public:
     return true;
   }
 
-  AETHON_ALWAYS_INLINE bool fsync_block(uint16_t file_slot, uint64_t user_data) {
-    AETHON_SAFE_CHECK(file_slot < num_registered_files, "file_slot out of bounds in fsync_block");
+  FLUXIO_ALWAYS_INLINE bool fsync_block(uint16_t file_slot, uint64_t user_data) {
+    FLUXIO_SAFE_CHECK(file_slot < num_registered_files, "file_slot out of bounds in fsync_block");
     IORequest req{};
     req.op_type = Type::Fsync;
     req.file_slot = file_slot;

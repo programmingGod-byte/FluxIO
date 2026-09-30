@@ -1,5 +1,5 @@
 #pragma once
-#include "../util/aethon.h"
+#include "../util/fluxio_macros.h"
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -10,14 +10,14 @@ namespace flux {
 struct TaggedIndex {
   uint64_t value; // 32 bit Version 32 bit index
 
-  AETHON_ALWAYS_INLINE uint32_t index() const noexcept {
+  FLUXIO_ALWAYS_INLINE uint32_t index() const noexcept {
     return static_cast<uint32_t>(value & 0xFFFFFFFF);
   };
-  AETHON_ALWAYS_INLINE uint32_t version() const noexcept {
+  FLUXIO_ALWAYS_INLINE uint32_t version() const noexcept {
     return static_cast<uint32_t>(value >> 32);
   };
 
-  AETHON_ALWAYS_INLINE TaggedIndex
+  FLUXIO_ALWAYS_INLINE TaggedIndex
   with_new_index(uint32_t new_idx) const noexcept {
     uint32_t next_version = version() + 1;
     uint64_t new_value = (static_cast<uint64_t>(next_version) << 32 | new_idx);
@@ -29,7 +29,7 @@ template <typename T> struct Slot {
   alignas(T) std::byte storage[sizeof(T)];
   uint32_t next_free_idx;
 
-  AETHON_ALWAYS_INLINE T *data() noexcept {
+  FLUXIO_ALWAYS_INLINE T *data() noexcept {
     return reinterpret_cast<T *>(storage);
   }
 };
@@ -50,7 +50,7 @@ public:
     slots_ = static_cast<Slot<T> *>(std::aligned_alloc(
         implementation::hardware_destructive_interference_size, aligned_bytes));
 
-    AETHON_SAFE_CHECK(slots_ != nullptr, "Index mem pool OOM on startup");
+    FLUXIO_SAFE_CHECK(slots_ != nullptr, "Index mem pool OOM on startup");
 
     for (uint32_t i = 1; i < Capacity; ++i) {
       slots_[i].next_free_idx = i + 1;
@@ -70,26 +70,26 @@ public:
       std::free(slots_);
     }
   }
-  AETHON_ALWAYS_INLINE uint32_t allocIndex() noexcept {
+  FLUXIO_ALWAYS_INLINE uint32_t allocIndex() noexcept {
     uint64_t current_val = free_head_.load(std::memory_order_acquire);
     TaggedIndex head{current_val};
     uint32_t backoff = 0; // Initialize backoff counter
 
     while (true) {
       uint32_t idx = head.index();
-      if (AETHON_UNLIKELY(idx == 0)) {
+      if (FLUXIO_UNLIKELY(idx == 0)) {
         return 0;
       }
 
       uint32_t next_idx = slots_[idx].next_free_idx;
       TaggedIndex new_head = head.with_new_index(next_idx);
 
-      if (AETHON_LIKELY(free_head_.compare_exchange_weak(
+      if (FLUXIO_LIKELY(free_head_.compare_exchange_weak(
               current_val, new_head.value, std::memory_order_release,
               std::memory_order_relaxed))) {
                 
                 if(next_idx!=0){
-                    AETHON_BUILTIN_PREFETCH(&slots_[next_idx], 0, 3); // next index in L1 cache
+                    FLUXIO_BUILTIN_PREFETCH(&slots_[next_idx], 0, 3); // next index in L1 cache
                 }
         return idx;
       }
@@ -97,9 +97,9 @@ public:
       head.value = current_val;
 
       // Exponential Backoff on failure (1, 2, 4, 8... up to 32 pauses)
-      if (AETHON_UNLIKELY(backoff > 0)) {
+      if (FLUXIO_UNLIKELY(backoff > 0)) {
         for (uint32_t i = 0; i < backoff; ++i) {
-          AETHON_PAUSE_CPU_INSTRUCTION;
+          FLUXIO_PAUSE_CPU_INSTRUCTION;
         }
       }
       if (backoff < 32) {
@@ -108,7 +108,7 @@ public:
     }
   };
 
-  AETHON_ALWAYS_INLINE void recycleIndex(uint32_t idx) noexcept {
+  FLUXIO_ALWAYS_INLINE void recycleIndex(uint32_t idx) noexcept {
     uint64_t current_val = free_head_.load(std::memory_order_relaxed);
     TaggedIndex head{current_val};
     uint32_t backoff = 0; // Initialize backoff counter
@@ -117,7 +117,7 @@ public:
       slots_[idx].next_free_idx = head.index();
       TaggedIndex new_head = head.with_new_index(idx);
 
-      if (AETHON_LIKELY(free_head_.compare_exchange_weak(
+      if (FLUXIO_LIKELY(free_head_.compare_exchange_weak(
               current_val, new_head.value, std::memory_order_release,
               std::memory_order_relaxed))) {
         return;
@@ -126,9 +126,9 @@ public:
       head.value = current_val;
 
       // Exponential Backoff on failure
-      if (AETHON_UNLIKELY(backoff > 0)) {
+      if (FLUXIO_UNLIKELY(backoff > 0)) {
         for (uint32_t i = 0; i < backoff; ++i) {
-          AETHON_PAUSE_CPU_INSTRUCTION;
+          FLUXIO_PAUSE_CPU_INSTRUCTION;
         }
       }
       if (backoff < 32) {
@@ -137,23 +137,23 @@ public:
     }
   };
 
-  AETHON_ALWAYS_INLINE T &operator[](uint32_t idx) noexcept {
+  FLUXIO_ALWAYS_INLINE T &operator[](uint32_t idx) noexcept {
     return *slots_[idx].data();
   }
 
-  AETHON_ALWAYS_INLINE void destroy(uint32_t idx) noexcept {
+  FLUXIO_ALWAYS_INLINE void destroy(uint32_t idx) noexcept {
     T *ptr = slots_[idx].data();
     ptr->~T();
     recycleIndex(idx);
   }
 
   template <typename... Args>
-  AETHON_ALWAYS_INLINE T *create(uint32_t &out_idx, Args &&...args) noexcept {
+  FLUXIO_ALWAYS_INLINE T *create(uint32_t &out_idx, Args &&...args) noexcept {
     out_idx = allocIndex();
-    if (AETHON_UNLIKELY(out_idx == 0))
+    if (FLUXIO_UNLIKELY(out_idx == 0))
       return nullptr;
     T *ptr = slots_[out_idx].data();
-    AETHON_BUILTIN_PREFETCH(ptr, 1, 3);
+    FLUXIO_BUILTIN_PREFETCH(ptr, 1, 3);
     return new (ptr) T(std::forward<Args>(args)...);
   }
 };

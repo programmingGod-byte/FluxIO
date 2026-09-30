@@ -4,7 +4,7 @@
 #include "../ring/ring_buffer.h"
 #include "../ring/sq_ring.h"
 #include "../ring/cq_ring.h"
-#include "../util/aethon.h"
+#include "../util/fluxio_macros.h"
 #include "../memory/slab_allocator.h"
 #include <bit>
 #include <array>
@@ -66,7 +66,7 @@ public:
     }
   }
 
-  AETHON_ATTR_GNU_COLD bool setup_io_uring() {
+  FLUXIO_ATTR_GNU_COLD bool setup_io_uring() {
     if (initialized)
       return true;
     if (num_registered_files == 0)
@@ -129,7 +129,7 @@ public:
     return true;
   }
 
-  AETHON_ALWAYS_INLINE int
+  FLUXIO_ALWAYS_INLINE int
   return_file_descriptor(const char *path) const noexcept {
     int flags = O_RDWR | O_CREAT;
     int fd = -1;
@@ -142,14 +142,14 @@ public:
     return fd;
   }
 
-  AETHON_ALWAYS_INLINE bool register_file(size_t slot,
+  FLUXIO_ALWAYS_INLINE bool register_file(size_t slot,
                                           const char *absolute_path) noexcept {
-    if (AETHON_UNLIKELY(slot >= num_files))
+    if (FLUXIO_UNLIKELY(slot >= num_files))
       return false;
 
     int fd = return_file_descriptor(absolute_path);
-    if (AETHON_UNLIKELY(fd < 0)) {
-      AETHON_SAFE_CHECK(Trait::always_false<bool>, "either the file ",
+    if (FLUXIO_UNLIKELY(fd < 0)) {
+      FLUXIO_SAFE_CHECK(Trait::always_false<bool>, "either the file ",
                         absolute_path,
                         " not exist or there is some error while opening it\n");
       return false;
@@ -158,7 +158,7 @@ public:
     file_state[slot].init(pages_per_file);
 
     // enable block allocation
-    if constexpr (AETHON_LIKELY(allow_block_allocation)){
+    if constexpr (FLUXIO_LIKELY(allow_block_allocation)){
 
       fileBlockManager.register_file(slot, fd);
     }
@@ -171,36 +171,36 @@ public:
     return true;
   }
 
-  AETHON_ALWAYS_INLINE int get_fd(size_t file_slot) const noexcept {
+  FLUXIO_ALWAYS_INLINE int get_fd(size_t file_slot) const noexcept {
     return registered_fds[file_slot];
   }
 
-  AETHON_ALWAYS_INLINE uint32_t file_count() const noexcept {
+  FLUXIO_ALWAYS_INLINE uint32_t file_count() const noexcept {
     return num_registered_files;
   }
 
-  AETHON_ALWAYS_INLINE bool write_block_async(
+  FLUXIO_ALWAYS_INLINE bool write_block_async(
       uint16_t file_slot, uint32_t buf_index, const void *data_src, size_t size,
       uint64_t file_offset, uint64_t user_data, uint64_t submit_ts_ns = 0) {
 
-    AETHON_SAFE_CHECK(data_src != nullptr, "data_src pointer cannot be null in write");
-    AETHON_SAFE_CHECK(size > 0, "write size must be greater than 0");
-    AETHON_SAFE_CHECK(size <= page_size_bytes, "write size exceeds registered page_size_bytes buffer capacity (split writes into page_size_bytes chunks or increase page_size_bytes template argument)");
-    AETHON_SAFE_CHECK(file_slot < num_registered_files, "file_slot out of bounds in write_block_async");
+    FLUXIO_SAFE_CHECK(data_src != nullptr, "data_src pointer cannot be null in write");
+    FLUXIO_SAFE_CHECK(size > 0, "write size must be greater than 0");
+    FLUXIO_SAFE_CHECK(size <= page_size_bytes, "write size exceeds registered page_size_bytes buffer capacity (split writes into page_size_bytes chunks or increase page_size_bytes template argument)");
+    FLUXIO_SAFE_CHECK(file_slot < num_registered_files, "file_slot out of bounds in write_block_async");
 
-    if constexpr (AETHON_LIKELY(allow_block_allocation)){
-      if (AETHON_UNLIKELY(!fileBlockManager.ensure_allocation(file_slot, file_offset, size))) {
+    if constexpr (FLUXIO_LIKELY(allow_block_allocation)){
+      if (FLUXIO_UNLIKELY(!fileBlockManager.ensure_allocation(file_slot, file_offset, size))) {
         return false;
       }
     }
 
-    AETHON_BUILTIN_PREFETCH(registered_buffers[buf_index].iov_base, 1, 3);
-    AETHON_BUILTIN_PREFETCH(&inflight_data[buf_index], 1, 3);
+    FLUXIO_BUILTIN_PREFETCH(registered_buffers[buf_index].iov_base, 1, 3);
+    FLUXIO_BUILTIN_PREFETCH(&inflight_data[buf_index], 1, 3);
 
     memcpy(registered_buffers[buf_index].iov_base, data_src, size);
 
     struct io_uring_sqe *sqe = io_uring_get_sqe(&ring);
-    if (AETHON_UNLIKELY(!sqe)) {
+    if (FLUXIO_UNLIKELY(!sqe)) {
       return false;
     }
     io_uring_prep_write_fixed(sqe, file_slot,
@@ -216,20 +216,20 @@ public:
     return true;
   }
 
-  AETHON_ALWAYS_INLINE bool read_block_async(
+  FLUXIO_ALWAYS_INLINE bool read_block_async(
       uint16_t file_slot, uint32_t buf_index, void *data_dest, size_t size,
       uint64_t file_offset, uint64_t user_data, uint64_t submit_ts_ns = 0) {
 
-    AETHON_SAFE_CHECK(data_dest != nullptr, "data_dest pointer cannot be null in read");
-    AETHON_SAFE_CHECK(size > 0, "read size must be greater than 0");
-    AETHON_SAFE_CHECK(size <= page_size_bytes, "read size exceeds registered page_size_bytes buffer capacity (split reads into page_size_bytes chunks or increase page_size_bytes template argument)");
-    AETHON_SAFE_CHECK(file_slot < num_registered_files, "file_slot out of bounds in read_block_async");
+    FLUXIO_SAFE_CHECK(data_dest != nullptr, "data_dest pointer cannot be null in read");
+    FLUXIO_SAFE_CHECK(size > 0, "read size must be greater than 0");
+    FLUXIO_SAFE_CHECK(size <= page_size_bytes, "read size exceeds registered page_size_bytes buffer capacity (split reads into page_size_bytes chunks or increase page_size_bytes template argument)");
+    FLUXIO_SAFE_CHECK(file_slot < num_registered_files, "file_slot out of bounds in read_block_async");
 
-    AETHON_BUILTIN_PREFETCH(registered_buffers[buf_index].iov_base, 1, 3);
-    AETHON_BUILTIN_PREFETCH(&inflight_data[buf_index], 1, 3);
+    FLUXIO_BUILTIN_PREFETCH(registered_buffers[buf_index].iov_base, 1, 3);
+    FLUXIO_BUILTIN_PREFETCH(&inflight_data[buf_index], 1, 3);
 
     struct io_uring_sqe *sqe = io_uring_get_sqe(&ring);
-    if (AETHON_UNLIKELY(!sqe)) {
+    if (FLUXIO_UNLIKELY(!sqe)) {
       return false;
     }
 
@@ -246,13 +246,13 @@ public:
     return true;
   }
 
-  AETHON_ALWAYS_INLINE bool fsync_block_async(
+  FLUXIO_ALWAYS_INLINE bool fsync_block_async(
       uint16_t file_slot, uint64_t user_data, uint64_t submit_ts_ns = 0) {
 
-    AETHON_SAFE_CHECK(file_slot < num_registered_files, "file_slot out of bounds in fsync_block_async");
+    FLUXIO_SAFE_CHECK(file_slot < num_registered_files, "file_slot out of bounds in fsync_block_async");
 
     struct io_uring_sqe *sqe = io_uring_get_sqe(&ring);
-    if (AETHON_UNLIKELY(!sqe)) {
+    if (FLUXIO_UNLIKELY(!sqe)) {
       return false;
     }
 
@@ -267,43 +267,43 @@ public:
     return true;
   }
 
-  AETHON_ALWAYS_INLINE bool read_block(uint16_t file_slot, void *data_dest,
+  FLUXIO_ALWAYS_INLINE bool read_block(uint16_t file_slot, void *data_dest,
                                        size_t size, uint64_t file_offset,
                                        uint64_t user_data) {
-    AETHON_SAFE_CHECK(initialized, "io_uring storage engine not initialized");
-    AETHON_SAFE_CHECK(file_slot < num_registered_files, "file_slot out of bounds in read_block");
-    AETHON_SAFE_CHECK(data_dest != nullptr, "data_dest pointer cannot be null in read_block");
-    AETHON_SAFE_CHECK(size > 0, "read size must be greater than 0");
-    AETHON_SAFE_CHECK(size <= page_size_bytes, "read size exceeds registered page_size_bytes buffer capacity");
+    FLUXIO_SAFE_CHECK(initialized, "io_uring storage engine not initialized");
+    FLUXIO_SAFE_CHECK(file_slot < num_registered_files, "file_slot out of bounds in read_block");
+    FLUXIO_SAFE_CHECK(data_dest != nullptr, "data_dest pointer cannot be null in read_block");
+    FLUXIO_SAFE_CHECK(size > 0, "read size must be greater than 0");
+    FLUXIO_SAFE_CHECK(size <= page_size_bytes, "read size exceeds registered page_size_bytes buffer capacity");
 
     int local_page = file_state[file_slot].alloc_page();
-    if (AETHON_UNLIKELY(local_page < 0)) {
+    if (FLUXIO_UNLIKELY(local_page < 0)) {
       return false;
     }
     uint32_t buf_index = (file_slot << shifter) + local_page;
     bool ok = read_block_async(file_slot, buf_index, data_dest, size, file_offset,
                                user_data, __builtin_ia32_rdtsc());
-    if (AETHON_UNLIKELY(!ok)) {
+    if (FLUXIO_UNLIKELY(!ok)) {
       file_state[file_slot].free_page(local_page);
       return false;
     }
     return true;
   }
 
-  AETHON_ALWAYS_INLINE bool fsync_block(uint16_t file_slot, uint64_t user_data) {
-    AETHON_SAFE_CHECK(initialized, "io_uring storage engine not initialized");
-    AETHON_SAFE_CHECK(file_slot < num_registered_files, "file_slot out of bounds in fsync_block");
+  FLUXIO_ALWAYS_INLINE bool fsync_block(uint16_t file_slot, uint64_t user_data) {
+    FLUXIO_SAFE_CHECK(initialized, "io_uring storage engine not initialized");
+    FLUXIO_SAFE_CHECK(file_slot < num_registered_files, "file_slot out of bounds in fsync_block");
     return fsync_block_async(file_slot, user_data, __builtin_ia32_rdtsc());
   }
 
-  AETHON_ALWAYS_INLINE void pool_completion() {
+  FLUXIO_ALWAYS_INLINE void poll_completion() {
     struct io_uring_cqe *cqe = nullptr;
     while (io_uring_peek_cqe(&ring, &cqe) == 0) {
-      AETHON_BUILTIN_PREFETCH(cqe + 1, 0, 3);
+      FLUXIO_BUILTIN_PREFETCH(cqe + 1, 0, 3);
 
       uint64_t tag = reinterpret_cast<uintptr_t>(io_uring_cqe_get_data(cqe));
 
-      if (AETHON_UNLIKELY((tag & FSYNC_TAG_BIT) != 0)) {
+      if (FLUXIO_UNLIKELY((tag & FSYNC_TAG_BIT) != 0)) {
         uint16_t file_slot = static_cast<uint16_t>(tag & ~FSYNC_TAG_BIT);
         const io_uring_data &data = inflight_fsync[file_slot];
 
@@ -322,9 +322,9 @@ public:
         comp.failed     = (cqe->res < 0);
 
         uint32_t backoff = 1;
-        while (AETHON_UNLIKELY(!cq_ring.push(std::move(comp)))) {
+        while (FLUXIO_UNLIKELY(!cq_ring.push(std::move(comp)))) {
           for (uint32_t i = 0; i < backoff; ++i) {
-            AETHON_PAUSE_CPU_INSTRUCTION;
+            FLUXIO_PAUSE_CPU_INSTRUCTION;
           }
           if (backoff < 16) {
             backoff <<= 1;
@@ -355,7 +355,7 @@ public:
       comp.failed = (cqe->res < 0);
 
       if (data.type == flux::Type::Read) {
-        if (AETHON_LIKELY(cqe->res > 0 && data.dest_buf != nullptr)) {
+        if (FLUXIO_LIKELY(cqe->res > 0 && data.dest_buf != nullptr)) {
           memcpy(data.dest_buf, registered_buffers[buf_index].iov_base, cqe->res);
         }
       }
@@ -364,9 +364,9 @@ public:
       io_uring_cqe_seen(&ring, cqe);
 
       uint32_t backoff = 1;
-      while (AETHON_UNLIKELY(!cq_ring.push(std::move(comp)))) {
+      while (FLUXIO_UNLIKELY(!cq_ring.push(std::move(comp)))) {
         for (uint32_t i = 0; i < backoff; ++i) {
-          AETHON_PAUSE_CPU_INSTRUCTION;
+          FLUXIO_PAUSE_CPU_INSTRUCTION;
         }
         if (backoff < 16) {
           backoff <<= 1;
@@ -375,23 +375,23 @@ public:
     }
   }
 
-  AETHON_ALWAYS_INLINE bool try_pop_completion(IoCompletion &out) noexcept {
+  FLUXIO_ALWAYS_INLINE bool try_pop_completion(IoCompletion &out) noexcept {
     return cq_ring.pop(out);
   }
 
-  AETHON_ALWAYS_INLINE bool try_push_request(IORequest &&request) noexcept {
+  FLUXIO_ALWAYS_INLINE bool try_push_request(IORequest &&request) noexcept {
     return sq_ring.push(std::move(request));
   }
 
-  AETHON_ALWAYS_INLINE bool try_push_request(const IORequest &request) noexcept {
+  FLUXIO_ALWAYS_INLINE bool try_push_request(const IORequest &request) noexcept {
     return sq_ring.push(request);
   }
 
-  AETHON_ALWAYS_INLINE void push_request(IORequest &&request) noexcept {
+  FLUXIO_ALWAYS_INLINE void push_request(IORequest &&request) noexcept {
     uint32_t backoff = 1;
-    while (AETHON_UNLIKELY(!sq_ring.push(std::move(request)))) {
+    while (FLUXIO_UNLIKELY(!sq_ring.push(std::move(request)))) {
       for (uint32_t i = 0; i < backoff; ++i) {
-        AETHON_PAUSE_CPU_INSTRUCTION;
+        FLUXIO_PAUSE_CPU_INSTRUCTION;
       }
       if (backoff < 16) {
         backoff <<= 1;
@@ -399,23 +399,23 @@ public:
     }
   }
 
-  AETHON_ALWAYS_INLINE void push_request(const IORequest &request) noexcept {
+  FLUXIO_ALWAYS_INLINE void push_request(const IORequest &request) noexcept {
     IORequest req = request;
     push_request(std::move(req));
   }
 
-  AETHON_ALWAYS_INLINE void submit() noexcept {
+  FLUXIO_ALWAYS_INLINE void submit() noexcept {
     io_uring_submit(&ring);
   }
 
-  AETHON_ALWAYS_INLINE int process_submissions(uint32_t max_batch = 64) {
+  FLUXIO_ALWAYS_INLINE int process_submissions(uint32_t max_batch = 64) {
     uint32_t processed = 0;
     while (processed < max_batch) {
       IORequest *req = sq_ring.peek();
       if (!req) {
         break;
       }
-      if (AETHON_UNLIKELY(!request_handler(*req))) {
+      if (FLUXIO_UNLIKELY(!request_handler(*req))) {
         break;
       }
       sq_ring.consume();
@@ -423,20 +423,20 @@ public:
     }
     if (processed > 0) {
       io_uring_submit(&ring);
-    } else if (AETHON_UNLIKELY(sqpoll_mode && (*ring.sq.kflags & IORING_SQ_NEED_WAKEUP))) {
+    } else if (FLUXIO_UNLIKELY(sqpoll_mode && (*ring.sq.kflags & IORING_SQ_NEED_WAKEUP))) {
       io_uring_submit(&ring);
     }
     return static_cast<int>(processed);
   }
 
-  AETHON_ALWAYS_INLINE int process_submissions(flux_sq &sq, uint32_t max_batch = 64) {
+  FLUXIO_ALWAYS_INLINE int process_submissions(flux_sq &sq, uint32_t max_batch = 64) {
     uint32_t processed = 0;
     while (processed < max_batch) {
       IORequest *req = sq.peek();
       if (!req) {
         break;
       }
-      if (AETHON_UNLIKELY(!request_handler(*req))) {
+      if (FLUXIO_UNLIKELY(!request_handler(*req))) {
         break;
       }
       sq.consume();
@@ -444,32 +444,32 @@ public:
     }
     if (processed > 0) {
       io_uring_submit(&ring);
-    } else if (AETHON_UNLIKELY(sqpoll_mode && (*ring.sq.kflags & IORING_SQ_NEED_WAKEUP))) {
+    } else if (FLUXIO_UNLIKELY(sqpoll_mode && (*ring.sq.kflags & IORING_SQ_NEED_WAKEUP))) {
       io_uring_submit(&ring);
     }
     return static_cast<int>(processed);
   }
 
-  AETHON_ALWAYS_INLINE bool request_handler(const IORequest &request) {
-    if (AETHON_UNLIKELY(!initialized)) {
-      AETHON_SAFE_CHECK(Trait::always_false<bool>, "io_uring not initialized");
+  FLUXIO_ALWAYS_INLINE bool request_handler(const IORequest &request) {
+    if (FLUXIO_UNLIKELY(!initialized)) {
+      FLUXIO_SAFE_CHECK(Trait::always_false<bool>, "io_uring not initialized");
       return false;
     }
-    if (AETHON_UNLIKELY(request.file_slot >= num_registered_files)) {
-      AETHON_SAFE_CHECK(Trait::always_false<bool>, "request.file_slot exceeds registered file count");
+    if (FLUXIO_UNLIKELY(request.file_slot >= num_registered_files)) {
+      FLUXIO_SAFE_CHECK(Trait::always_false<bool>, "request.file_slot exceeds registered file count");
       return false;
     }
-    if (AETHON_UNLIKELY(request.op_type != flux::Type::Fsync && request.length > page_size_bytes)) {
-      AETHON_SAFE_CHECK(Trait::always_false<bool>, "request.length exceeds page_size_bytes buffer capacity! Split your request into page_size_bytes chunks or increase page_size_bytes template argument.");
+    if (FLUXIO_UNLIKELY(request.op_type != flux::Type::Fsync && request.length > page_size_bytes)) {
+      FLUXIO_SAFE_CHECK(Trait::always_false<bool>, "request.length exceeds page_size_bytes buffer capacity! Split your request into page_size_bytes chunks or increase page_size_bytes template argument.");
       return false;
     }
 
     uint16_t file_slot = request.file_slot;
 
-    if (AETHON_LIKELY(request.op_type == flux::Type::Write)) {
-      AETHON_BUILTIN_PREFETCH(&file_state[file_slot], 1, 3);
+    if (FLUXIO_LIKELY(request.op_type == flux::Type::Write)) {
+      FLUXIO_BUILTIN_PREFETCH(&file_state[file_slot], 1, 3);
       int local_page = file_state[file_slot].alloc_page();
-      if (AETHON_UNLIKELY(local_page < 0)) {
+      if (FLUXIO_UNLIKELY(local_page < 0)) {
         return false;
       }
 
@@ -478,16 +478,16 @@ public:
       bool val = write_block_async(file_slot, buff_index, request.data_src,
                                    request.length, request.file_offset,
                                    request.user_data, request.timestamp_ns);
-      if (AETHON_UNLIKELY(!val)) {
+      if (FLUXIO_UNLIKELY(!val)) {
         file_state[file_slot].free_page(local_page);
         return false;
       }
 
       return true;
     } else if (request.op_type == flux::Type::Read) {
-      AETHON_BUILTIN_PREFETCH(&file_state[file_slot], 1, 3);
+      FLUXIO_BUILTIN_PREFETCH(&file_state[file_slot], 1, 3);
       int local_page = file_state[file_slot].alloc_page();
-      if (AETHON_UNLIKELY(local_page < 0)) {
+      if (FLUXIO_UNLIKELY(local_page < 0)) {
         return false;
       }
 
@@ -497,7 +497,7 @@ public:
       bool val = read_block_async(file_slot, buff_index, dest,
                                   request.length, request.file_offset,
                                   request.user_data, request.timestamp_ns);
-      if (AETHON_UNLIKELY(!val)) {
+      if (FLUXIO_UNLIKELY(!val)) {
         file_state[file_slot].free_page(local_page);
         return false;
       }
@@ -539,7 +539,7 @@ private:
   bool sqpoll_mode{false};
   FileBlockManager<chunk_size,num_files> fileBlockManager;
 
-  AETHON_ATTR_GNU_COLD void cleanup_buffers() noexcept {
+  FLUXIO_ATTR_GNU_COLD void cleanup_buffers() noexcept {
     for (uint32_t i = 0; i < num_registered_files; ++i) {
       for (uint32_t j = 0; j < pages_per_file; ++j) {
         if (file_buffer_ptrs[i][j]) {

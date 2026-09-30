@@ -58,7 +58,7 @@ int main() {
         }
 
         engine.process_submissions();
-        engine.pool_completion();
+        engine.poll_completion();
 
         flux::IoCompletion comp{};
         while (engine.try_pop_completion(comp)) {
@@ -88,7 +88,7 @@ int main() {
 
     bool synced = false;
     while (!synced) {
-        engine.pool_completion();
+        engine.poll_completion();
         flux::IoCompletion comp{};
         while (engine.try_pop_completion(comp)) {
             if (comp.op_type == flux::Type::Fsync) {
@@ -117,7 +117,7 @@ int main() {
 
     bool read_done = false;
     while (!read_done) {
-        engine.pool_completion();
+        engine.poll_completion();
         flux::IoCompletion comp{};
         while (engine.try_pop_completion(comp)) {
             if (comp.op_type == flux::Type::Read) {

@@ -521,7 +521,7 @@ sudo cmake --install build</code></pre>
         │   ├── sq_ring.h           # IORequest definition
         │   └── cq_ring.h           # IoCompletion definition
         └── util/
-            ├── aethon.h            # Compiler optimization primitives & asserts
+            ├── fluxio_macros.h            # Compiler optimization primitives & asserts
             ├── cpu_affinity.h      # Core pinning utilities
             ├── prefetch.h          # CPU cache prefetching helpers
             └── rdtsc.h             # Hardware cycle timing</code></pre>
@@ -538,7 +538,7 @@ sudo cmake --install build</code></pre>
         <li><code>op_type</code>: Operation type (<code>Read</code>, <code>Write</code>, <code>Fsync</code>, <code>Nop</code>).</li>
         <li><code>file_slot</code>: Target file index in the fixed file descriptor table.</li>
         <li><code>file_offset</code>: Byte offset within the target file (must be 4KB aligned for Direct I/O).</li>
-        <li><code>length</code>: Transfer size in bytes (guarded by <code>AETHON_SAFE_CHECK</code>).</li>
+        <li><code>length</code>: Transfer size in bytes (guarded by <code>FLUXIO_SAFE_CHECK</code>).</li>
         <li><code>user_data</code>: 64-bit application token routed back with the completion.</li>
       </ul>
     </section>
@@ -615,7 +615,7 @@ int main() {
     // 4. Poll completions
     bool done = false;
     while (!done) {
-        engine.pool_completion();
+        engine.poll_completion();
         flux::IoCompletion comp{};
         while (engine.try_pop_completion(comp)) {
             if (comp.user_data == 101) {
@@ -669,7 +669,7 @@ int main() {
     // 3. Poll completions
     bool done = false;
     while (!done) {
-        engine.pool_completion();
+        engine.poll_completion();
         flux::IoCompletion comp{};
         while (engine.try_pop_completion(comp)) {
             if (comp.user_data == 303) {
@@ -731,7 +731,7 @@ int main() {
     // 4. Poll completions
     bool done = false;
     while (!done) {
-        engine.pool_completion();
+        engine.poll_completion();
         flux::IoCompletion comp{};
         while (engine.try_pop_completion(comp)) {
             if (comp.user_data == 202) {
@@ -975,7 +975,7 @@ int main() {
         }
 
         engine.process_submissions();
-        engine.pool_completion();
+        engine.poll_completion();
 
         flux::IoCompletion comp{};
         while (engine.try_pop_completion(comp)) {
@@ -1005,7 +1005,7 @@ int main() {
 
     bool synced = false;
     while (!synced) {
-        engine.pool_completion();
+        engine.poll_completion();
         flux::IoCompletion comp{};
         while (engine.try_pop_completion(comp)) {
             if (comp.op_type == flux::Type::Fsync) {
@@ -1034,7 +1034,7 @@ int main() {
 
     bool read_done = false;
     while (!read_done) {
-        engine.pool_completion();
+        engine.poll_completion();
         flux::IoCompletion comp{};
         while (engine.try_pop_completion(comp)) {
             if (comp.op_type == flux::Type::Read) {
@@ -1072,7 +1072,7 @@ int main() {
   #endif
 #endif
 
-#include &quot;util/aethon.h&quot;
+#include &quot;util/fluxio_macros.h&quot;
 #include &quot;util/rdtsc.h&quot;
 #include &quot;util/cpu_affinity.h&quot;
 #include &quot;ring/ring_buffer.h&quot;
@@ -1332,7 +1332,7 @@ endif()
               <td class="highlight-col"><strong>248,558.2 IOPS</strong> (970.93 MiB/s)</td>
               <td>303,164.1 IOPS (1,184.23 MiB/s)</td>
               <td>15,994.1 IOPS (62.48 MiB/s)</td>
-              <td><span class="highlight-col">15.54× vs Asio</span></td>
+              <td><span class="highlight-col">0.82× vs Go &bull; 15.54× vs Asio</span></td>
             </tr>
             <tr>
               <td><strong>Random Read</strong></td>

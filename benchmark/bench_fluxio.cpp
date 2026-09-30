@@ -58,7 +58,7 @@ static void run_case(
             ++warmup_sub;
         }
         engine.process_submissions(qd);
-        engine.pool_completion();
+        engine.poll_completion();
         bool got = false;
         while (engine.try_pop_completion(comp)) {
             ++warmup_comp;
@@ -97,7 +97,7 @@ static void run_case(
             ++submitted;
         }
         engine.process_submissions(qd);
-        engine.pool_completion();
+        engine.poll_completion();
         bool got = false;
         while (engine.try_pop_completion(comp)) {
             tracker.record_start_end(comp.submit_ts_ns, comp.complete_ts_ns);
@@ -220,12 +220,14 @@ static void run_suite(const std::string& suite_title, const std::string& filenam
 
     for (uint32_t qd : qds) {
         uint32_t ops = (qd == 1) ? 20000 : 50000;
+
         run_case(engine, "4KB Seq Read", flux::Type::Read, false, qd, ops, file_size, block_size, io_buf.data());
     }
     std::cout << std::string(123, '-') << "\n";
 
     for (uint32_t qd : qds) {
         uint32_t ops = (qd == 1) ? 20000 : 50000;
+
         run_case(engine, "4KB Rand Read", flux::Type::Read, true, qd, ops, file_size, block_size, io_buf.data());
     }
     std::cout << std::string(123, '=') << "\n\n";

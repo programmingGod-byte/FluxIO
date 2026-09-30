@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../util/aethon.h"
+#include "../util/fluxio_macros.h"
 #include <array>
 #include <string_view>
 #include <cstdint>
@@ -29,7 +29,7 @@ template <size_t N> struct FixedString {
       assign(std::string_view(str));
   }
 
-  AETHON_ALWAYS_INLINE void assign(std::string_view sv) noexcept {
+  FLUXIO_ALWAYS_INLINE void assign(std::string_view sv) noexcept {
     size_t len = std::min(sv.size(), N);
     for (size_t i = 0; i < len; ++i) {
       data[i] = sv[i];
@@ -38,8 +38,8 @@ template <size_t N> struct FixedString {
     size = static_cast<uint16_t>(len);
   }
 
-  AETHON_ALWAYS_INLINE void insert(const char *c, size_t len) noexcept {
-    AETHON_SAFE_CHECK(len <= N, "Size exceeds fixed capacity");
+  FLUXIO_ALWAYS_INLINE void insert(const char *c, size_t len) noexcept {
+    FLUXIO_SAFE_CHECK(len <= N, "Size exceeds fixed capacity");
     for (size_t i = 0; i < len; ++i) {
       data[i] = c[i];
     }
@@ -66,7 +66,7 @@ struct alignas(implementation::hardware_destructive_interference_size) FileState
   uint8_t _pad[implementation::hardware_destructive_interference_size -
                sizeof(std::array<uint64_t, 2>)]{};
 
-  AETHON_ALWAYS_INLINE void init(uint32_t num_pages) noexcept {
+  FLUXIO_ALWAYS_INLINE void init(uint32_t num_pages) noexcept {
     if (num_pages >= 128) {
       free_mask[0] = ~0ULL;
       free_mask[1] = ~0ULL;
@@ -83,7 +83,7 @@ struct alignas(implementation::hardware_destructive_interference_size) FileState
     }
   }
 
-  AETHON_ALWAYS_INLINE int alloc_page() noexcept {
+  FLUXIO_ALWAYS_INLINE int alloc_page() noexcept {
     if (free_mask[0] != 0) {
       int page = __builtin_ctzll(free_mask[0]);
       free_mask[0] &= ~(1ULL << page);
@@ -97,7 +97,7 @@ struct alignas(implementation::hardware_destructive_interference_size) FileState
     return -1;
   }
 
-  AETHON_ALWAYS_INLINE void free_page(int page) noexcept {
+  FLUXIO_ALWAYS_INLINE void free_page(int page) noexcept {
     if (page < 64) {
       free_mask[0] |= (1ULL << page);
     } else {

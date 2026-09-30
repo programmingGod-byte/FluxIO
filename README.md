@@ -21,7 +21,7 @@ Achieving **over 504,000 IOPS** and **1,970 MiB/s** throughput on consumer NVMe 
   - SPSC lock-free ring buffers for submission and completion queues.
   - Cache-line aligned data structures (`alignas(64)`) to eliminate false sharing.
 - **Comprehensive Runtime Safety**:
-  - `AETHON_SAFE_CHECK` guards throughout the pipeline preventing buffer overflows, unaligned transfers, and null pointer dereferences.
+  - `FLUXIO_SAFE_CHECK` guards throughout the pipeline preventing buffer overflows, unaligned transfers, and null pointer dereferences.
 
 ---
 
@@ -97,7 +97,7 @@ Prior to `FileBlockManager`, sparse files without preallocation hit ext4's exclu
 
 | Workload | Golang (Unmanaged Sparse) | Boost.Asio (Unmanaged Sparse) | FluxIO (with FileBlockManager) |
 | :--- | :---: | :---: | :---: |
-| **QD128 Random Write IOPS** | 29,074.7 IOPS | 28,411.3 IOPS | **426,100.0 IOPS (14.6× faster)** |
+| **QD128 Random Write IOPS** | 29,074.7 IOPS | 28,411.3 IOPS | **426,100.0 IOPS (overcomes ext4 lock)** |
 | **QD128 Throughput** | 113.57 MiB/s | 110.98 MiB/s | **1,664.45 MiB/s** |
 | **Median Latency ($p50$)** | 4,402.5 µs | 1,797.7 µs | **247.0 µs** |
 | **Max Tail Latency** | 17.61 ms | 56.22 ms | **2.28 ms** |
@@ -112,10 +112,12 @@ All three benchmarks executed on the exact same physical NVMe drive using 4KB Di
 | :--- | :---: | :---: | :---: | :---: |
 | **Sequential Write** | **504,531.2 IOPS** (1,970.83 MiB/s) | 229,638.7 IOPS (897.03 MiB/s) | 63,549.8 IOPS (248.24 MiB/s) | **2.20× vs Go &bull; 7.94× vs Asio** |
 | **Random Write** | **436,783.5 IOPS** (1,706.19 MiB/s) | 217,250.8 IOPS (848.64 MiB/s) | 51,307.6 IOPS (200.42 MiB/s) | **2.01× vs Go &bull; 8.51× vs Asio** |
-| **Sequential Read** | **248,558.2 IOPS** (970.93 MiB/s) | 303,164.1 IOPS (1,184.23 MiB/s) | 15,994.1 IOPS (62.48 MiB/s) | **15.54× vs Asio** |
+| **Sequential Read** | **248,558.2 IOPS** (970.93 MiB/s) | 303,164.1 IOPS (1,184.23 MiB/s) | 15,994.1 IOPS (62.48 MiB/s) | **0.82× vs Go** &bull; **15.54× vs Asio** |
 | **Random Read** | **404,212.7 IOPS** (1,578.96 MiB/s) | 326,340.6 IOPS (1,274.77 MiB/s) | 13,230.4 IOPS (51.68 MiB/s) | **1.24× vs Go &bull; 30.55× vs Asio** |
 
 *Note: FluxIO completely bypasses kernel context switches and userspace threading overhead using kernel-side submission polling (`SQPOLL`), executing orders of magnitude faster than traditional event-loop or goroutine thread-pool driven asynchronous I/O models.*
+
+**Core Accounting**: FluxIO operates at ~200% CPU (1 core for the user busy-poll thread + 1 core for the kernel SQPOLL thread). Go and Asio operate at ~100% CPU. While FluxIO achieves up to 2.2× higher raw IOPS than Go, its IOPS-per-core efficiency is roughly on par with Go due to the dedicated kernel thread.
 
 ---
 
@@ -245,7 +247,7 @@ int main() {
     // 4. Poll completions
     bool done = false;
     while (!done) {
-        engine.pool_completion();
+        engine.poll_completion();
         flux::IoCompletion comp{};
         while (engine.try_pop_completion(comp)) {
             if (comp.user_data == 101) {
@@ -302,7 +304,7 @@ int main() {
     // 3. Poll completions
     bool done = false;
     while (!done) {
-        engine.pool_completion();
+        engine.poll_completion();
         flux::IoCompletion comp{};
         while (engine.try_pop_completion(comp)) {
             if (comp.user_data == 303) {
@@ -367,7 +369,7 @@ int main() {
     // 4. Poll completions
     bool done = false;
     while (!done) {
-        engine.pool_completion();
+        engine.poll_completion();
         flux::IoCompletion comp{};
         while (engine.try_pop_completion(comp)) {
             if (comp.user_data == 202) {
@@ -633,7 +635,7 @@ int main() {
         }
 
         engine.process_submissions();
-        engine.pool_completion();
+        engine.poll_completion();
 
         flux::IoCompletion comp{};
         while (engine.try_pop_completion(comp)) {
@@ -666,7 +668,7 @@ int main() {
 
     bool synced = false;
     while (!synced) {
-        engine.pool_completion();
+        engine.poll_completion();
         flux::IoCompletion comp{};
         while (engine.try_pop_completion(comp)) {
             if (comp.op_type == flux::Type::Fsync) {
@@ -697,7 +699,7 @@ int main() {
 
     bool read_done = false;
     while (!read_done) {
-        engine.pool_completion();
+        engine.poll_completion();
         flux::IoCompletion comp{};
         while (engine.try_pop_completion(comp)) {
             if (comp.op_type == flux::Type::Read) {
@@ -739,7 +741,7 @@ int main() {
   #endif
 #endif
 
-#include "util/aethon.h"
+#include "util/fluxio_macros.h"
 #include "util/rdtsc.h"
 #include "util/cpu_affinity.h"
 #include "ring/ring_buffer.h"
@@ -812,7 +814,7 @@ FluxIO/
         │   ├── sq_ring.h           # IORequest definition
         │   └── cq_ring.h           # IoCompletion definition
         └── util/
-            ├── aethon.h            # Compiler optimization primitives & asserts
+            ├── fluxio_macros.h            # Compiler optimization primitives & asserts
             ├── cpu_affinity.h      # Core pinning utilities
             ├── prefetch.h          # CPU cache prefetching helpers
             └── rdtsc.h             # Hardware cycle timing

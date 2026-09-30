@@ -28,7 +28,7 @@ int main() {
     // 3. Poll completions
     bool done = false;
     while (!done) {
-        engine.pool_completion();
+        engine.poll_completion();
         flux::IoCompletion comp{};
         while (engine.try_pop_completion(comp)) {
             if (comp.user_data == 303) {

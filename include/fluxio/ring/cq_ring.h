@@ -16,7 +16,7 @@ struct alignas(64) IoCompletion {
     Type     op_type;        // Operation type (Read, Write, Fsync, Close)
     char     _pad[27];       // Pad to exactly 64 bytes
 
-    AETHON_ALWAYS_INLINE Type type() const noexcept { return op_type; }
+    FLUXIO_ALWAYS_INLINE Type type() const noexcept { return op_type; }
 };
 static_assert(sizeof(IoCompletion) == 64, "IoCompletion must be exactly 1 cache line!");
 

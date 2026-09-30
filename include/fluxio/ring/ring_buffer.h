@@ -1,5 +1,5 @@
 #pragma  once
-#include "../util/aethon.h"
+#include "../util/fluxio_macros.h"
 #include <array>
 #include <atomic>
 #include <cstddef>
@@ -24,70 +24,70 @@ private:
 public:
     flux_ring_buffer() = default;
 
-    AETHON_ALWAYS_INLINE bool isEmpty() const noexcept {
+    FLUXIO_ALWAYS_INLINE bool isEmpty() const noexcept {
         uint32_t head = head_.load(std::memory_order_relaxed);
         uint32_t tail = tail_.load(std::memory_order_acquire);
         return head == tail;
     }
 
-    AETHON_ALWAYS_INLINE bool isFull() const noexcept {
+    FLUXIO_ALWAYS_INLINE bool isFull() const noexcept {
         uint32_t head = head_.load(std::memory_order_acquire);
         uint32_t next_tail = (tail_.load(std::memory_order_relaxed) + 1) & MASK;
         return head == next_tail;
     }
 
     // Pop element (Consumer)
-    AETHON_ALWAYS_INLINE bool pop(T &val) noexcept {
+    FLUXIO_ALWAYS_INLINE bool pop(T &val) noexcept {
         uint32_t head = head_.load(std::memory_order_relaxed);
         uint32_t tail = tail_.load(std::memory_order_acquire);
         
-        if (AETHON_UNLIKELY(head == tail)) {
+        if (FLUXIO_UNLIKELY(head == tail)) {
             return false; // Empty
         }
 
         uint32_t next_head = (head + 1) & MASK;
-        AETHON_BUILTIN_PREFETCH(&data_[next_head], 0, 3);
+        FLUXIO_BUILTIN_PREFETCH(&data_[next_head], 0, 3);
 
         val = std::move(data_[head]);
         head_.store(next_head, std::memory_order_release);
         return true;
     }
 
-    AETHON_ALWAYS_INLINE T* peek() noexcept {
+    FLUXIO_ALWAYS_INLINE T* peek() noexcept {
         uint32_t head = head_.load(std::memory_order_relaxed);
         uint32_t tail = tail_.load(std::memory_order_acquire);
-        if (AETHON_UNLIKELY(head == tail)) {
+        if (FLUXIO_UNLIKELY(head == tail)) {
             return nullptr;
         }
         return &data_[head];
     }
 
-    AETHON_ALWAYS_INLINE const T* peek() const noexcept {
+    FLUXIO_ALWAYS_INLINE const T* peek() const noexcept {
         uint32_t head = head_.load(std::memory_order_relaxed);
         uint32_t tail = tail_.load(std::memory_order_acquire);
-        if (AETHON_UNLIKELY(head == tail)) {
+        if (FLUXIO_UNLIKELY(head == tail)) {
             return nullptr;
         }
         return &data_[head];
     }
 
-    AETHON_ALWAYS_INLINE void consume() noexcept {
+    FLUXIO_ALWAYS_INLINE void consume() noexcept {
         uint32_t head = head_.load(std::memory_order_relaxed);
         uint32_t next_head = (head + 1) & MASK;
         head_.store(next_head, std::memory_order_release);
     }
 
     template<typename ...Args>
-    AETHON_ALWAYS_INLINE bool push(Args&&... args) noexcept {
+    FLUXIO_ALWAYS_INLINE bool push(Args&&... args) noexcept {
         uint32_t tail = tail_.load(std::memory_order_relaxed);
         uint32_t head = head_.load(std::memory_order_acquire);
         uint32_t next_tail = (tail + 1) & MASK;
 
-        if (AETHON_UNLIKELY(next_tail == head)) {
+        if (FLUXIO_UNLIKELY(next_tail == head)) {
             return false; // Full
         }
 
-        AETHON_BUILTIN_PREFETCH(&data_[tail], 1, 3);
+        FLUXIO_BUILTIN_PREFETCH(&data_[tail], 1, 3);
         data_[tail] = T(std::forward<Args>(args)...);
         tail_.store(next_tail, std::memory_order_release);
         return true;
@@ -99,7 +99,7 @@ public:
             uint32_t tail = tail_.load(std::memory_order_relaxed);
 
             while (head != tail) {
-                AETHON_BUILTIN_PREFETCH(&data_[head], 1, 3);                    
+                FLUXIO_BUILTIN_PREFETCH(&data_[head], 1, 3);                    
                 data_[head].~T();
                 head = (head + 1) & MASK;
             }

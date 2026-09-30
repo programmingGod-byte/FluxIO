@@ -1,6 +1,6 @@
 #pragma once
-#ifndef AETHON_H_GUARD_
-#define AETHON_H_GUARD_
+#ifndef FLUXIO_H_GUARD_
+#define FLUXIO_H_GUARD_
 #include <bits/stdc++.h>
 #include <cassert>
 #include <cstddef>
@@ -22,7 +22,7 @@ inline void safe_write_all(const char *str, Rest... rest) {
   safe_write_all(rest...);
 }
 
-#define AETHON_SAFE_CHECK(expr, ...)                                           \
+#define FLUXIO_SAFE_CHECK(expr, ...)                                           \
   do {                                                                         \
     if (!static_cast<bool>(expr)) {                                            \
       safe_write_all("[ASSERT FAILED] (" #expr ") in ", __FILE__, ":",         \
@@ -32,9 +32,9 @@ inline void safe_write_all(const char *str, Rest... rest) {
   } while (false)
 
 #ifdef __x86_64__
-#define AETHON_PAUSE_CPU_INSTRUCTION __builtin_ia32_pause();
+#define FLUXIO_PAUSE_CPU_INSTRUCTION __builtin_ia32_pause();
 #else
-#define AETHON_PAUSE_CPU_INSTRUCTION
+#define FLUXIO_PAUSE_CPU_INSTRUCTION
 #endif
 
 #ifdef _MSC_VER
@@ -50,141 +50,141 @@ constexpr bool kIsLinux = false;
 #endif
 
 #ifdef __GNUC__
-#define AETHON_ALWAYS_INLINE inline __attribute__((__always_inline__))
+#define FLUXIO_ALWAYS_INLINE inline __attribute__((__always_inline__))
 #else
-#define AETHON_ALWAYS_INLINE inline
+#define FLUXIO_ALWAYS_INLINE inline
 #endif
 
 #ifdef __GNUC__
-#define AETHON_NO_INLINE inline __attribute__((__noinline__))
+#define FLUXIO_NO_INLINE inline __attribute__((__noinline__))
 #else
-#define AETHON_NO_INLINE
+#define FLUXIO_NO_INLINE
 #endif
 
 #ifdef __GNUC__
-#define AETHON_ATTR_VISIBILITY_HIDDEN __attribute__((__visibility__("hidden")))
+#define FLUXIO_ATTR_VISIBILITY_HIDDEN __attribute__((__visibility__("hidden")))
 #else
-#define AETHON_ATTR_VISIBILITY_HIDDEN
+#define FLUXIO_ATTR_VISIBILITY_HIDDEN
 #endif
 
-#define AETHON_ERASE AETHON_ALWAYS_INLINE AETHON_ATTR_VISIBILITY_HIDDEN
+#define FLUXIO_ERASE FLUXIO_ALWAYS_INLINE FLUXIO_ATTR_VISIBILITY_HIDDEN
 
 #if defined(__has_feature)
 #if __has_feature(address_sanitizer) || defined(__SANITIZE_ADDRESS__) ||       \
     __has_feature(hwaddress_sanitizer)
-#define AETHON_SANITIZE_ADDRESS 1
+#define FLUXIO_SANITIZE_ADDRESS 1
 #endif
 #endif
 
-#ifdef AETHON_SANITIZE_ADDRESS
+#ifdef FLUXIO_SANITIZE_ADDRESS
 #if defined(__clang__)
 #if __has_attribute(__no_sanitize__)
-#define AETHON_DISABLE_ADDRESS_SANITIZER                                       \
+#define FLUXIO_DISABLE_ADDRESS_SANITIZER                                       \
   __attribute__((__no_sanitize__("address"), __noinline__))                    \
   __attribute__((__no_sanitize__("hwaddress"), __noinline__))
 #elif __has_attribute(__no_address_safety_analysis__)
-#define AETHON_DISABLE_ADDRESS_SANITIZER                                       \
+#define FLUXIO_DISABLE_ADDRESS_SANITIZER                                       \
   __attribute__((__no_address_safety_analysis__, __noinline__))
 #elif __has_attribute(__no_sanitize_address__)
-#define AETHON_DISABLE_ADDRESS_SANITIZER                                       \
+#define FLUXIO_DISABLE_ADDRESS_SANITIZER                                       \
   __attribute__((__no_sanitize_address__, __noinline__))
 #endif
 #elif defined(__GNUC__)
-#define AETHON_DISABLE_ADDRESS_SANITIZER                                       \
+#define FLUXIO_DISABLE_ADDRESS_SANITIZER                                       \
   __attribute__((__no_address_safety_analysis__, __noinline__))
 #elif defined(_MSC_VER)
-#define AETHON_DISABLE_ADDRESS_SANITIZER __declspec(no_sanitize_address)
+#define FLUXIO_DISABLE_ADDRESS_SANITIZER __declspec(no_sanitize_address)
 #endif
 #endif
-#ifndef AETHON_DISABLE_ADDRESS_SANITIZER
-#define AETHON_DISABLE_ADDRESS_SANITIZER
+#ifndef FLUXIO_DISABLE_ADDRESS_SANITIZER
+#define FLUXIO_DISABLE_ADDRESS_SANITIZER
 #endif
 
 #if defined(__has_builtin)
-#define AETHON_HAS_BUILTIN(x) __has_builtin(x)
+#define FLUXIO_HAS_BUILTIN(x) __has_builtin(x)
 #else
-#define AETHON_HAS_BUILTIN(x) 0
+#define FLUXIO_HAS_BUILTIN(x) 0
 #endif
 
 #ifndef __has_cpp_attribute
-#define AETHON_HAS_CPP_ATTRIBUTE(x) 0
+#define FLUXIO_HAS_CPP_ATTRIBUTE(x) 0
 #else
-#define AETHON_HAS_CPP_ATTRIBUTE(x) __has_cpp_attribute(x)
+#define FLUXIO_HAS_CPP_ATTRIBUTE(x) __has_cpp_attribute(x)
 #endif
 
 #if defined(__has_include)
-#define AETHON_HAS_INCLUDE(header) __has_include(header)
+#define FLUXIO_HAS_INCLUDE(header) __has_include(header)
 #else
-#define AETHON_HAS_INCLUDE(header) 0
+#define FLUXIO_HAS_INCLUDE(header) 0
 #endif
 
-#if AETHON_HAS_BUILTIN(__builtin_unpredictable)
-#define AETHON_BUILTIN_UNPREDICTABLE(exp) __builtin_unpredictable(exp)
+#if FLUXIO_HAS_BUILTIN(__builtin_unpredictable)
+#define FLUXIO_BUILTIN_UNPREDICTABLE(exp) __builtin_unpredictable(exp)
 #else
-#define AETHON_BUILTIN_UNPREDICTABLE(exp) (exp)
+#define FLUXIO_BUILTIN_UNPREDICTABLE(exp) (exp)
 #endif
 
-#if AETHON_HAS_BUILTIN(__builtin_expect)
-#define AETHON_BUILTIN_EXPECT(exp, c)                                          \
+#if FLUXIO_HAS_BUILTIN(__builtin_expect)
+#define FLUXIO_BUILTIN_EXPECT(exp, c)                                          \
   __builtin_expect(static_cast<bool>(exp), c)
 #else
-#define AETHON_BUILTIN_EXPECT(exp, c) (exp)
+#define FLUXIO_BUILTIN_EXPECT(exp, c) (exp)
 #endif
 
-#if AETHON_HAS_BUILTIN(__builtin_expect_with_probability)
-#define AETHON_BUILTIN_EXPECT_WITH_PROBABILITY(exp, c, p)                      \
+#if FLUXIO_HAS_BUILTIN(__builtin_expect_with_probability)
+#define FLUXIO_BUILTIN_EXPECT_WITH_PROBABILITY(exp, c, p)                      \
   __builtin_expect_with_probability(exp, c, p)
 #else
-#define AETHON_BUILTIN_EXPECT_WITH_PROBABILITY(exp, c, p) (exp)
+#define FLUXIO_BUILTIN_EXPECT_WITH_PROBABILITY(exp, c, p) (exp)
 #endif
 
-#if AETHON_HAS_BUILTIN(__builtin_prefetch)
-#define AETHON_BUILTIN_PREFETCH(addr, rw, locality)                            \
+#if FLUXIO_HAS_BUILTIN(__builtin_prefetch)
+#define FLUXIO_BUILTIN_PREFETCH(addr, rw, locality)                            \
   __builtin_prefetch((addr), (rw), (locality))
 #else
-#define AETHON_BUILTIN_PREFETCH(addr, rw, locality) ((void)0)
+#define FLUXIO_BUILTIN_PREFETCH(addr, rw, locality) ((void)0)
 #endif
 
-#define AETHON_LIKELY(...) AETHON_BUILTIN_EXPECT((__VA_ARGS__), 1)
-#define AETHON_UNLIKELY(...) AETHON_BUILTIN_EXPECT((__VA_ARGS__), 0)
+#define FLUXIO_LIKELY(...) FLUXIO_BUILTIN_EXPECT((__VA_ARGS__), 1)
+#define FLUXIO_UNLIKELY(...) FLUXIO_BUILTIN_EXPECT((__VA_ARGS__), 0)
 
-#if AETHON_HAS_CPP_ATTRIBUTE(gnu::musttail)
-#define AETHON_ATTR_MUSTTAIL [[gnu::musttail]]
-#elif AETHON_HAS_CPP_ATTRIBUTE(clang::musttail)
-#define AETHON_ATTR_MUSTTAIL [[clang::musttail]]
-#elif AETHON_HAS_CPP_ATTRIBUTE(msvc::musttail)
-#define AETHON_ATTR_MUSTTAIL [[msvc::musttail]]
+#if FLUXIO_HAS_CPP_ATTRIBUTE(gnu::musttail)
+#define FLUXIO_ATTR_MUSTTAIL [[gnu::musttail]]
+#elif FLUXIO_HAS_CPP_ATTRIBUTE(clang::musttail)
+#define FLUXIO_ATTR_MUSTTAIL [[clang::musttail]]
+#elif FLUXIO_HAS_CPP_ATTRIBUTE(msvc::musttail)
+#define FLUXIO_ATTR_MUSTTAIL [[msvc::musttail]]
 #else
-#define AETHON_ATTR_MUSTTAIL
+#define FLUXIO_ATTR_MUSTTAIL
 #endif
 
-#if AETHON_HAS_CPP_ATTRIBUTE(no_unique_address)
-#define AETHON_ATTR_NO_UNIQUE_ADDRESS [[no_unique_address]]
-#elif AETHON_HAS_CPP_ATTRIBUTE(msvc::no_unique_address)
-#define AETHON_ATTR_NO_UNIQUE_ADDRESS [[msvc::no_unique_address]]
+#if FLUXIO_HAS_CPP_ATTRIBUTE(no_unique_address)
+#define FLUXIO_ATTR_NO_UNIQUE_ADDRESS [[no_unique_address]]
+#elif FLUXIO_HAS_CPP_ATTRIBUTE(msvc::no_unique_address)
+#define FLUXIO_ATTR_NO_UNIQUE_ADDRESS [[msvc::no_unique_address]]
 #else
-#define AETHON_ATTR_NO_UNIQUE_ADDRESS
+#define FLUXIO_ATTR_NO_UNIQUE_ADDRESS
 #endif
 
-#if AETHON_HAS_CPP_ATTRIBUTE(gnu::flatten)
-#define AETHON_ATTR_GNU_FLATTEN [[gnu::flatten]]
+#if FLUXIO_HAS_CPP_ATTRIBUTE(gnu::flatten)
+#define FLUXIO_ATTR_GNU_FLATTEN [[gnu::flatten]]
 #else
-#define AETHON_ATTR_GNU_FLATTEN
+#define FLUXIO_ATTR_GNU_FLATTEN
 #endif
 
-#if AETHON_HAS_CPP_ATTRIBUTE(gnu::cold)
-#define AETHON_ATTR_GNU_COLD [[gnu::cold]]
+#if FLUXIO_HAS_CPP_ATTRIBUTE(gnu::cold)
+#define FLUXIO_ATTR_GNU_COLD [[gnu::cold]]
 #else
-#define AETHON_ATTR_GNU_COLD
+#define FLUXIO_ATTR_GNU_COLD
 #endif
 
 
 // import check
 
 #if defined (__has_include)
-#define AETHON_HAS_INCLUDE(header) __has_include(header)
+#define FLUXIO_HAS_INCLUDE(header) __has_include(header)
 #else
-#define AETHON_HAS_INCLUDE(header) 0
+#define FLUXIO_HAS_INCLUDE(header) 0
 #endif
 
 
@@ -231,12 +231,12 @@ namespace implementation {
 
 // sleep when * addr == val
 
-AETHON_ALWAYS_INLINE void futex_wait(std::atomic<uint32_t>*addr, uint32_t val){
+FLUXIO_ALWAYS_INLINE void futex_wait(std::atomic<uint32_t>*addr, uint32_t val){
   syscall(SYS_futex,reinterpret_cast<int*>(addr),FUTEX_WAIT_PRIVATE,val,nullptr,nullptr,0);
 }
 
 // wakeuo one thread sleeping on addr
-AETHON_ALWAYS_INLINE void futex_wake(std::atomic<uint32_t>* addr) {
+FLUXIO_ALWAYS_INLINE void futex_wake(std::atomic<uint32_t>* addr) {
     syscall(SYS_futex, reinterpret_cast<int*>(addr), FUTEX_WAKE_PRIVATE, 1, nullptr, nullptr, 0);
 }
 
@@ -365,7 +365,7 @@ struct align_ceil_fn {
 };
 inline constexpr align_ceil_fn align_ceil;
 
-AETHON_DISABLE_ADDRESS_SANITIZER
+FLUXIO_DISABLE_ADDRESS_SANITIZER
 void custom_unaligned_raw_memory_access(void *ptr) {
   std::uintptr_t addr = reinterpret_cast<std::uintptr_t>(ptr);
   (void)addr;
@@ -374,7 +374,7 @@ void custom_unaligned_raw_memory_access(void *ptr) {
 int factorial_tail(int n, int acc = 1) {
   if (n <= 1)
     return acc;
-  AETHON_ATTR_MUSTTAIL return factorial_tail(n - 1, n * acc);
+  FLUXIO_ATTR_MUSTTAIL return factorial_tail(n - 1, n * acc);
 }
 
 } // namespace implementation
@@ -387,28 +387,28 @@ constexpr bool is_pointer =
 template <typename T> constexpr bool is_pointer<T *> = true;
 } // namespace variableTemplates
 
-#ifdef AETHON_ENABLE_STANDALONE_MAIN
+#ifdef FLUXIO_ENABLE_STANDALONE_MAIN
 int main() {
   std::cout << "Testing lock-free Aethon framework...\n";
 
   int x = 42;
   implementation::custom_unaligned_raw_memory_access(&x);
 
-  if (AETHON_LIKELY(x == 42)) {
+  if (FLUXIO_LIKELY(x == 42)) {
     std::cout << "Fast path executed: x == 42 (Likely branch!)\n";
   }
 
-  if (AETHON_UNLIKELY(x == 0)) {
+  if (FLUXIO_UNLIKELY(x == 0)) {
     std::cout << "Unlikely branch executed!\n";
   }
 
   int val = rand() % 2;
-  if (AETHON_BUILTIN_UNPREDICTABLE(val == 1)) {
+  if (FLUXIO_BUILTIN_UNPREDICTABLE(val == 1)) {
     std::cout << "Random 50/50 branch evaluated (Branchless CMOV executed!)\n";
   }
 
   int data_array[100] = {0};
-  AETHON_BUILTIN_PREFETCH(&data_array[50], 0, 3);
+  FLUXIO_BUILTIN_PREFETCH(&data_array[50], 0, 3);
   std::cout << "Hardware prefetch instruction issued for L1 cache!\n";
 
   int fact_res = implementation::factorial_tail(5);
@@ -427,4 +427,4 @@ int main() {
   return 0;
 }
 #endif
-#endif // AETHON_H_GUARD_
+#endif // FLUXIO_H_GUARD_

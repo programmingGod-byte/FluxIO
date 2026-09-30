@@ -45,7 +45,7 @@ int main() {
     // Wait for write completion
     bool write_done = false;
     while (!write_done) {
-        engine.pool_completion();
+        engine.poll_completion();
         flux::IoCompletion comp{};
         while (engine.try_pop_completion(comp)) {
             if (comp.user_data == 1001) {
@@ -68,7 +68,7 @@ int main() {
 
     bool sync_done = false;
     while (!sync_done) {
-        engine.pool_completion();
+        engine.poll_completion();
         flux::IoCompletion comp{};
         while (engine.try_pop_completion(comp)) {
             if (comp.user_data == 2002) {
@@ -96,7 +96,7 @@ int main() {
 
     bool read_done = false;
     while (!read_done) {
-        engine.pool_completion();
+        engine.poll_completion();
         flux::IoCompletion comp{};
         while (engine.try_pop_completion(comp)) {
             if (comp.user_data == 3003) {

@@ -1,5 +1,5 @@
 #pragma once
-#include "../util/aethon.h"
+#include "../util/fluxio_macros.h"
 #include <algorithm>
 #include <cstddef>
 #include <cstdlib>
@@ -9,7 +9,7 @@ namespace flux {
 
 struct Block{
     Block * next {nullptr}; // pointer to next if allocated more than 64kb
-    AETHON_ALWAYS_INLINE char * data() noexcept {
+    FLUXIO_ALWAYS_INLINE char * data() noexcept {
         return reinterpret_cast<char*>(this+1);
     };
 };
@@ -21,11 +21,11 @@ class Arena{
         char * end_{nullptr}; // end of current 64 kb block
         Block* head_block_{nullptr}; // head of the linked list
     
-        AETHON_NO_INLINE void * allocate_slow(size_t size, size_t alignment){
+        FLUXIO_NO_INLINE void * allocate_slow(size_t size, size_t alignment){
             size_t alloc_size = std::max(BlockSize,size+sizeof(Block) + alignment);
 
             void * raw_mem = std::aligned_alloc(64,alloc_size);
-            AETHON_SAFE_CHECK(raw_mem !=nullptr,"out of memory in arena allocator");
+            FLUXIO_SAFE_CHECK(raw_mem !=nullptr,"out of memory in arena allocator");
 
             Block * new_block  = static_cast<Block*>(raw_mem);
             new_block->next = head_block_;
@@ -47,13 +47,13 @@ class Arena{
             allocate_slow(0, 64);
         }
         template<size_t Alignment = 16>
-        AETHON_ALWAYS_INLINE void * allocate(size_t size) noexcept{
+        FLUXIO_ALWAYS_INLINE void * allocate(size_t size) noexcept{
             char * aligned_ptr = implementation::align_ceil(ptr_,Alignment);
             char *next_ptr = aligned_ptr + size; // move forward by size bytes
 
-            if(AETHON_LIKELY(next_ptr <=end_)){
+            if(FLUXIO_LIKELY(next_ptr <=end_)){
                 ptr_ = next_ptr;
-                AETHON_BUILTIN_PREFETCH(next_ptr, 1, 3);
+                FLUXIO_BUILTIN_PREFETCH(next_ptr, 1, 3);
                 return aligned_ptr;
             }
 
@@ -61,15 +61,15 @@ class Arena{
             return allocate_slow(size, Alignment);
         };
 
-        AETHON_ALWAYS_INLINE void reset() noexcept{
-            if(AETHON_LIKELY(head_block_!=nullptr)){
+        FLUXIO_ALWAYS_INLINE void reset() noexcept{
+            if(FLUXIO_LIKELY(head_block_!=nullptr)){
                 ptr_ = head_block_->data();
-                AETHON_BUILTIN_PREFETCH(ptr_, 1, 3);
+                FLUXIO_BUILTIN_PREFETCH(ptr_, 1, 3);
             }
         }
 
         template<typename T, typename... Args>
-        AETHON_ALWAYS_INLINE T* create(Args&&... args){
+        FLUXIO_ALWAYS_INLINE T* create(Args&&... args){
             void *mem  = allocate<alignof(T)>(sizeof(T));
             return new (mem) T(std::forward<Args>(args)...);
         }
