@@ -100,3 +100,18 @@ install(EXPORT FluxIOTargets
     NAMESPACE FluxIO::
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/FluxIO
 )
+
+# --- Python Bindings ---
+option(FLUXIO_BUILD_PYTHON "Build Python bindings using pybind11" ON)
+if(FLUXIO_BUILD_PYTHON)
+    set(pybind11_DIR "${CMAKE_CURRENT_SOURCE_DIR}/extern/pybind11/share/cmake/pybind11" CACHE PATH "pybind11 directory")
+    find_package(pybind11 CONFIG QUIET)
+    if(pybind11_FOUND)
+        message(STATUS "FluxIO: Building Python bindings target (fluxio module)")
+        pybind11_add_module(fluxio_python python/bindings.cpp)
+        target_link_libraries(fluxio_python PRIVATE fluxio)
+        set_target_properties(fluxio_python PROPERTIES OUTPUT_NAME "fluxio")
+    else()
+        message(STATUS "FluxIO: pybind11 not found, skipping Python bindings target")
+    endif()
+endif()

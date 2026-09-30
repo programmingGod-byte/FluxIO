@@ -5,3 +5,9 @@ compile_commands.json
 .cache/
 /AsioBenchmark/
 /GolangBenchmark/
+*.so
+*.egg-info/
+dist/
+CMakeFiles/
+CMakeCache.txt
+

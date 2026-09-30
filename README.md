@@ -180,7 +180,42 @@ find_package(FluxIO REQUIRED)
 target_link_libraries(my_storage_app PRIVATE FluxIO::fluxio)
 ```
 
+## Method 5: Python Bindings (`pip install .`)
+
+FluxIO provides high-performance C++20 Python bindings via `pybind11`. It directly supports Python's Buffer Protocol (`bytes`, `bytearray`, `memoryview`, NumPy arrays) with zero serialization overhead and releases the GIL during I/O operations.
+
+### Installation via pip
+```bash
+cd FluxIO
+pip install .
+```
+
+### Python Quickstart Example
+```python
+import fluxio
+
+# 1. Initialize Engine (Native io_uring or POSIX Direct I/O fallback)
+engine = fluxio.StorageEngine() # Use fluxio.PosixStorageEngine() for unprivileged environments
+engine.register_file(0, "storage.dat")
+engine.setup()
+
+# 2. Synchronous High-Level Direct I/O (Releases Python GIL)
+payload = b"A" * 4096
+bytes_written = engine.write_block(slot=0, buffer=payload, offset=0)
+data = engine.read_block(slot=0, size=4096, offset=0)
+engine.fsync_block(slot=0)
+
+# 3. High-Throughput Asynchronous Pipeline (Lock-free SQ ring)
+buf = bytearray(b"B" * 4096)
+engine.write(slot=0, buffer=buf, offset=0, user_data=101)
+engine.process_submissions(max_batch=1)
+
+comp = engine.wait_completion(timeout_ms=1000)
+print(f"Async completion: {comp} (latency: {comp.latency_cycles} cycles)")
+```
+
 ---
+
 ## Code Examples & Usage Guide
 
 All example programs strictly include and use the top-level master header `<fluxio/flux_io.h>`.
