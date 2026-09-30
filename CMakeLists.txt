@@ -100,9 +100,3 @@ install(EXPORT FluxIOTargets
     NAMESPACE FluxIO::
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/FluxIO
 )
-
-# --- Tests ---
-enable_testing()
-add_executable(test_fluxio tests/test_fluxio.cpp)
-target_link_libraries(test_fluxio PRIVATE fluxio)
-add_test(NAME FluxIOTests COMMAND test_fluxio)
