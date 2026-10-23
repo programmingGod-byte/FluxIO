@@ -1,0 +1,175 @@
+Here are the C++ problems only, ranked by expected impact. Each one says where it is, what's wrong, and the fix I'd recommend. I haven't run any of this yet; the analysis comes from reading the code and your benchmark tables.
+
+---
+
+### 1. Random writes collapse in Mode 2 at QD64 and above
+**Where:** `include/fluxio/backend/fileBlockManager.h:48`
+
+**Problem:** `fallocate(FALLOC_FL_KEEP_SIZE)` reserves space but leaves it marked "unwritten". On ext4, an O_DIRECT write into unwritten space can't take the non-blocking path. io_uring then hands it to `iou-wrk` worker threads, which all queue on the inode lock. That fits your numbers: 429K IOPS falls to 16K, with about 100 ms tails. Mode 1 is fine only because the benchmark fills the file with data first. You can confirm it with `ps -eLf | grep iou-wrk` while the benchmark runs.
+
+**Best fix:** make sure blocks are fully written before user I/O touches them.
+- A background thread writes zeros into each new chunk ahead of the write frontier, using large O_DIRECT writes of 1 MB or more.
+- Only offsets inside the zero-filled region count as "ready".
+- If the workload allows it, a log-structured design (always append, keep an index) is even better, because it turns random writes into sequential ones.
+
+---
+
+### 2. `fallocate` blocks the submit loop
+**Where:** `include/fluxio/backend/fileBlockManager.h:56-70`, called from `io_uring_backend.h:192`
+
+**Problem:** `ensure_allocation` calls `fallocate` on the thread that submits I/O. A random offset far past the current allocation runs the `while` loop many times, one 10 MB `fallocate` per pass, and all submission stops for the whole time.
+
+**Best fix:**
+- Make a single `fallocate` call that covers the whole gap (`offset = allocated`, `len = round_up(target) - allocated`).
+- Better still, move allocation to a helper thread. The hot path only reads an atomic `allocated_until` value, and when usage passes the 80% watermark it signals the helper to extend by N chunks. The hot path should never make a system call.
+
+---
+
+### 3. Completions arrive by interrupt instead of polling
+**Where:** `include/fluxio/backend/io_uring_backend.h:77`
+
+**Problem:** Only `IORING_SETUP_SQPOLL` is set, so every completion costs an interrupt. Random reads at QD1 show 43 µs at p50, and sequential reads lose to Go.
+
+**Best fix:**
+```cpp
+params.flags = IORING_SETUP_SQPOLL | IORING_SETUP_IOPOLL | IORING_SETUP_SQ_AFF;
+params.sq_thread_cpu = 3;      // next to your pinned user thread on core 2
+```
+- `IOPOLL` needs O_DIRECT (you already have it) and the `nvme.poll_queues=4` kernel boot parameter.
+- Fall back to the current flags if setup fails.
+- `SQ_AFF` stops the kernel's submission thread from drifting onto your user core.
+
+---
+
+### 4. Two `memcpy`s on every I/O
+**Where:** `io_uring_backend.h:200` (write) and `:359` (read)
+
+**Problem:** Every write copies 4 KB into the registered buffer, and every read copies 4 KB back out. At about 700K IOPS that's roughly 2.8 GB/s of copying on your single busy core.
+
+**Best fix:** give the caller the registered buffer directly so nothing is copied.
+```cpp
+struct IoBuffer { uint32_t index; void* data; };
+std::optional<IoBuffer> acquire_buffer(uint16_t slot);    // alloc_page()
+bool submit_write(IoBuffer b, uint32_t len, uint64_t off, uint64_t ud);
+bool submit_read (IoBuffer b, uint32_t len, uint64_t off, uint64_t ud);
+void release_buffer(IoBuffer b);                          // free_page()
+```
+- For a write, the caller fills `b.data` before submitting.
+- For a read, the completion hands `b.data` back; nothing is copied and nothing is freed until the caller calls release.
+- Keep the old copying API as a convenience wrapper on top.
+
+---
+
+### 5. Requests are copied through extra rings that do nothing for a single thread
+**Where:** `sq_ring` and `cq_ring` in `io_uring_backend.h:533-534`, plus `process_submissions` and `poll_completion`
+
+**Problem:** Each request is stored as an `IORequest` in `sq_ring`, then turned into a kernel submission entry. Each kernel completion is turned into an `IoCompletion` and pushed into `cq_ring`. That's two extra 64-byte copies and two extra atomic ring operations per I/O. They help only when one thread produces requests and a different thread drives io_uring, and that isn't how the benchmark uses the engine.
+
+**Best fix:** add a direct path, and keep the rings only for the multi-threaded mode.
+```cpp
+// submit: write straight into the kernel submission entry
+io_uring_sqe* sqe = io_uring_get_sqe(&ring); ... prep ...
+
+// complete: handle completions in batches with a callback, no cq_ring
+template <class F> unsigned for_each_completion(F&& f) {
+  io_uring_cqe* cqes[64];
+  unsigned n = io_uring_peek_batch_cqe(&ring, cqes, 64);
+  for (unsigned i = 0; i < n; ++i) f(make_completion(cqes[i]));
+  io_uring_cq_advance(&ring, n);      // one store instead of n
+  return n;
+}
+```
+
+---
+
+### 6. `poll_completion` can hang forever
+**Where:** `io_uring_backend.h:325` and `:367`
+
+**Problem:** If `cq_ring` is full, `poll_completion` spins waiting for space. But the same thread is the one that empties `cq_ring` with `try_pop_completion`, so the spin never ends. It can happen once more than 4095 completions are waiting.
+
+**Best fix:** when `cq_ring` is full, stop processing and return without calling `io_uring_cqe_seen` for the current entry. The completion stays in the kernel queue and gets picked up on the next poll. Never spin inside `poll_completion`. Fix #5 also removes this problem entirely.
+
+---
+
+### 7. The default engine is too big for io_uring and probably fails at setup
+**Where:** `file_state.h:13-15` and `io_uring_backend.h:80`
+
+**Problem:** `DefaultStorageEngine` asks for 2048 files × 32 pages = 65,536 queue entries and 65,536 registered buffers. io_uring allows at most 32,768 queue entries and 16,384 registered buffers, so setup will very likely fail. Even when it succeeds, a ring that large wastes memory and cache.
+
+**Best fix:**
+- Size the ring to the real maximum number of in-flight I/Os: `ring_depth = min(num_files * pages_per_file, 4096)`.
+- Add `IORING_SETUP_CLAMP`.
+- Add a `static_assert(num_files * pages_per_file <= 16384)`, or use the memory layout from #8, which needs only one registered iovec.
+
+---
+
+### 8. Thousands of small buffer allocations cause TLB pressure
+**Where:** `io_uring_backend.h:104-118`
+
+**Problem:** Each 4 KB buffer gets its own `posix_memalign` call, which means scattered memory, one TLB entry per page, and many iovecs for the kernel to pin.
+
+**Best fix:** allocate one contiguous region backed by huge pages and register it as a single iovec:
+```cpp
+size_t total = align_up(num_files * pages_per_file * page_size_bytes, 2 << 20);
+void* base = mmap(nullptr, total, PROT_READ|PROT_WRITE,
+                  MAP_PRIVATE|MAP_ANONYMOUS|MAP_HUGETLB|MAP_POPULATE, -1, 0);
+if (base == MAP_FAILED) { base = aligned_alloc(2<<20, total); madvise(base, total, MADV_HUGEPAGE); }
+iovec iov{base, total};
+io_uring_register_buffers(&ring, &iov, 1);
+// buffer i = (char*)base + i * page_size_bytes; buf_index arg for *_fixed = 0
+```
+This also gets rid of `file_buffer_ptrs` and `registered_buffers`, which together take about 1.5 MB.
+
+---
+
+### 9. In-flight I/Os per file are capped at 128
+**Where:** `file_state.h:63-107` and `cq_ring.h:14`
+
+**Problem:** `FileState` tracks free pages in a 2 × 64-bit mask, so a single file can have at most 128 I/Os in flight. `IoCompletion::local_page` is a `uint8_t`, so it would also overflow above 256 pages. A single hot file at QD greater than 128 hits this limit.
+
+**Best fix:** use one shared pool of buffers for all files instead of a fixed number of pages per file. Keep the free buffer indices in a simple stack (`uint16_t free_stack[N]; top--`, O(1), single-threaded). Change `local_page` to `uint32_t buf_index`; there's room for it in the padding.
+
+---
+
+### 10. Safety checks run on every request, some up to three times
+**Where:** `fluxio_macros.h:25`, used in `io_uring_backend.h:186-189`, `:223-226`, `:453-465`
+
+**Problem:** `FLUXIO_SAFE_CHECK` is always on, and the same checks (slot bounds, size) run in `request_handler` and again in `write_block_async`.
+
+**Best fix:**
+```cpp
+#ifdef FLUXIO_ENABLE_CHECKS
+  #define FLUXIO_SAFE_CHECK(expr, ...) /* current body */
+#else
+  #define FLUXIO_SAFE_CHECK(expr, ...) ((void)0)
+#endif
+```
+Validate once at the public entry point. Internal `*_async` functions should assume their inputs are valid.
+
+---
+
+### 11. Build settings
+**Where:** `CMakeLists.txt:19-24` and `fluxio_macros.h:4`
+
+**Problem:**
+- `-O3` is set as an INTERFACE option, which forces it onto every project that uses the library.
+- There's no `-march=native` and no LTO.
+- `<bits/stdc++.h>` slows down every compile.
+
+**Best fix:**
+- Remove `-O3` from the INTERFACE options.
+- Add `option(FLUXIO_NATIVE "..." ON)` → `-march=native`, and set `CMAKE_INTERPROCEDURAL_OPTIMIZATION ON` for the benchmark.
+- Replace `<bits/stdc++.h>` with the specific headers you actually use.
+
+---
+
+### 12. The benchmark loop makes system calls while it should be spinning
+**Where:** `benchmark/bench_fluxio.cpp:67-70` and `:107-110`
+
+**Problem:** When nothing has completed, the loop calls `engine.submit()` and `sched_yield()`. Those are system calls inside a busy-poll loop, and they add latency at QD1, which skews your numbers.
+
+**Best fix:** call `__builtin_ia32_pause()` instead. `process_submissions` already wakes the kernel thread when it needs it (`IORING_SQ_NEED_WAKEUP`).
+
+---
+
+**Suggested order:** #1 and #2 fix the Mode 2 collapse. #3 fixes read latency. #4 and #5 cut CPU per I/O, which raises the IOPS ceiling. #6 and #7 are correctness bugs and are quick to fix. I can implement any of these and rerun `bench_fluxio` to compare before and after.

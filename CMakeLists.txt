@@ -40,6 +40,11 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/benchmark/bench_fluxio.cpp")
     target_link_libraries(bench_fluxio PRIVATE fluxio)
 endif()
 
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/benchmark/bench_write.cpp" AND URING_LIB)
+    add_executable(bench_write benchmark/bench_write.cpp)
+    target_link_libraries(bench_write PRIVATE fluxio)
+endif()
+
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/user.cpp")
     add_executable(user_demo user.cpp)
     target_link_libraries(user_demo PRIVATE fluxio)
@@ -49,6 +54,11 @@ endif()
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/examples/io_uring_example.cpp" AND URING_LIB)
     add_executable(io_uring_example examples/io_uring_example.cpp)
     target_link_libraries(io_uring_example PRIVATE fluxio)
+endif()
+
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/examples/multi_file_example.cpp" AND URING_LIB)
+    add_executable(multi_file_example examples/multi_file_example.cpp)
+    target_link_libraries(multi_file_example PRIVATE fluxio)
 endif()
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/examples/posix_example.cpp")

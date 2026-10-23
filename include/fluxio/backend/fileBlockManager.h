@@ -1,10 +1,12 @@
 #pragma once
 
+#include <linux/falloc.h>
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
 
 #include "../util/fluxio_macros.h"
+#include "file_state.h"
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -19,8 +21,8 @@ namespace flux {
 template <std::size_t chunk_size = 10 * 1024 * 1024>
 struct FileBlock {
   uint64_t current_file_size_logical{0};
-  uint64_t allocated_block_size{0};
-  uint64_t max_written_offset{0};
+  uint64_t allocated_block_size{0}; // how many bytes we pre allocated on disk 
+  uint64_t max_written_offset{0}; // the furthese byte offeset written so far
   int fd{-1};
 
   FileBlock() = default;
@@ -31,7 +33,7 @@ struct FileBlock {
         max_written_offset(0),
         fd(fd) {
     FLUXIO_SAFE_CHECK(fd >= 0, "file descriptor should be non-negative");
-    allocate_chunk(0);
+    allocate_chunk(0,chunk_size);
   }
 
   FLUXIO_ALWAYS_INLINE static uint64_t get_file_size_logical(int fd) noexcept {
@@ -43,13 +45,36 @@ struct FileBlock {
     return static_cast<uint64_t>(st.st_size);
   }
 
-  FLUXIO_ALWAYS_INLINE bool allocate_chunk(uint64_t offset) noexcept {
-    if (FLUXIO_UNLIKELY(fd < 0)) return false;
-    int res = ::fallocate(fd, FALLOC_FL_KEEP_SIZE, offset, chunk_size);
-    if (FLUXIO_UNLIKELY(res == -1)) {
-      return false;
+  FLUXIO_ALWAYS_INLINE bool allocate_chunk(uint64_t offset,uint64_t bytes_to_add ) noexcept {
+    if(FLUXIO_UNLIKELY(fd < 0 || bytes_to_add ==0)) return false;
+
+    // physical disk allocation
+    int res = ::fallocate(fd, 0, offset, bytes_to_add);
+    if(FLUXIO_UNLIKELY(res==-1)){
+      // fallback to the KEEP_SIZE
+      res = ::fallocate(fd, FALLOC_FL_KEEP_SIZE, offset, bytes_to_add);
+      if(FLUXIO_UNLIKELY(res==-1)){
+        return false;
+      }
     }
-    allocated_block_size += chunk_size;
+
+    // write zeros in 2 mb chunks
+    constexpr size_t ZERO_BUF_SIZE = 2 * 1024 * 1024;
+    alignas(POSIX_MEMALIGN_BYTES_SIZE) static const char zero_buf[ZERO_BUF_SIZE]{0};
+
+    uint64_t written = 0;
+    while (written < bytes_to_add) {
+      size_t to_write = static_cast<size_t>(std::min<uint64_t>(ZERO_BUF_SIZE,bytes_to_add - written));
+      ssize_t w = ::pwrite(fd, zero_buf, to_write, offset + written);
+
+      if(FLUXIO_UNLIKELY(w <=0)){
+        break;
+      }
+
+      written+=static_cast<uint64_t>(w);
+    }
+
+    allocated_block_size+=bytes_to_add;
     return true;
   }
 
@@ -60,11 +85,15 @@ struct FileBlock {
     }
 
     uint64_t watermark = (allocated_block_size * 4) / 5;
-    while (target_offset >= watermark) {
-      if (FLUXIO_UNLIKELY(!allocate_chunk(allocated_block_size))) {
-        return false;
+    if (FLUXIO_UNLIKELY(target_offset >= watermark)) {
+      uint64_t needed_size = ((target_offset + chunk_size - 1) / chunk_size) * chunk_size + chunk_size;
+      uint64_t bytes_to_add = needed_size - allocated_block_size;
+
+      if (bytes_to_add > 0) {
+        if (!allocate_chunk(allocated_block_size, bytes_to_add)) {
+          return false;
+        }
       }
-      watermark = (allocated_block_size * 4) / 5;
     }
     return true;
   }
@@ -72,7 +101,7 @@ struct FileBlock {
 
 
 template <std::size_t chunk_size = 10 * 1024 * 1024,
-          std::size_t num_files = 2096>
+          std::size_t num_files = DEFAULT_NUM_FILES>
 class FileBlockManager {
 public:
   FileBlockManager() = default;

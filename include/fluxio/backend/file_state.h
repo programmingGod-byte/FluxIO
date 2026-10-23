@@ -9,10 +9,12 @@
 
 namespace flux {
 
-static constexpr uint32_t QUEUE_ENTRY_SIZE = 4096;
-static constexpr uint32_t FILE_QUEUE_SIZE_ENTRY = 2096;
+static constexpr uint32_t QUEUE_ENTRY_SIZE = 4096; // capacity of the ring buffer 
+static constexpr uint32_t DEFAULT_NUM_FILES = 4; // no of file the engine open 
+static constexpr uint32_t MAX_NUM_FILES = 2048; // max file support 
+static constexpr uint32_t FILE_QUEUE_SIZE_ENTRY = DEFAULT_NUM_FILES;
 static constexpr uint32_t POSIX_MEMALIGN_BYTES_SIZE = 4096;
-static constexpr uint32_t PAGES_PER_FILE = 32;
+static constexpr uint32_t PAGES_PER_FILE = 32; 
 static constexpr uint32_t PAGE_SIZE_BYTES = 4096;
 static constexpr uint32_t PAGES_PER_FILE_SHIFT = 5;
 

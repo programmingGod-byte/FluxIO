@@ -27,14 +27,14 @@
 namespace flux {
 
 #if FLUX_HAS_IO_URING
-template <std::size_t num_files = FILE_QUEUE_SIZE_ENTRY,
+template <std::size_t num_files = DEFAULT_NUM_FILES,
           std::size_t pages_per_file = PAGES_PER_FILE,
           std::size_t page_size_bytes = PAGE_SIZE_BYTES,
           bool allow_block_allocation = true,
           std::uint64_t chunk_size = 10 * 1024 * 1024>
 using flux_storage_engine = io_uring_storage_engine<num_files, pages_per_file, page_size_bytes, allow_block_allocation, chunk_size>;
 #else
-template <std::size_t num_files = FILE_QUEUE_SIZE_ENTRY,
+template <std::size_t num_files = DEFAULT_NUM_FILES,
           std::size_t pages_per_file = PAGES_PER_FILE,
           std::size_t page_size_bytes = PAGE_SIZE_BYTES,
           bool allow_block_allocation = true,
