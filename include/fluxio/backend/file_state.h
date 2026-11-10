@@ -41,12 +41,12 @@ template <size_t N> struct FixedString {
   }
 
   FLUXIO_ALWAYS_INLINE void insert(const char *c, size_t len) noexcept {
-    FLUXIO_SAFE_CHECK(len <= N, "Size exceeds fixed capacity");
-    for (size_t i = 0; i < len; ++i) {
+    size_t actual_len = std::min(len, N);
+    for (size_t i = 0; i < actual_len; ++i) {
       data[i] = c[i];
     }
-    data[len] = '\0';
-    size = static_cast<uint16_t>(len);
+    data[actual_len] = '\0';
+    size = static_cast<uint16_t>(actual_len);
   }
 
   constexpr std::string_view view() const noexcept {

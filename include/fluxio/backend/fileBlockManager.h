@@ -29,11 +29,13 @@ struct FileBlock {
 
   explicit FileBlock(int fd)
       : current_file_size_logical(get_file_size_logical(fd)),
-        allocated_block_size(0),
-        max_written_offset(0),
+        allocated_block_size(get_file_size_logical(fd)),
+        max_written_offset(get_file_size_logical(fd)),
         fd(fd) {
     FLUXIO_SAFE_CHECK(fd >= 0, "file descriptor should be non-negative");
-    allocate_chunk(0,chunk_size);
+    if (allocated_block_size == 0) {
+      allocate_chunk(0, chunk_size);
+    }
   }
 
   FLUXIO_ALWAYS_INLINE static uint64_t get_file_size_logical(int fd) noexcept {

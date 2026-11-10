@@ -52,6 +52,10 @@ template <std::size_t num_files = DEFAULT_NUM_FILES,
 class io_uring_storage_engine {
   static_assert(num_files <= MAX_NUM_FILES,
                 "Number of files cannot exceed MAX_NUM_FILES");
+  static_assert(std::has_single_bit(pages_per_file),
+                "pages_per_file must be a power of 2 for buffer bit-shifting");
+  static_assert(std::has_single_bit(page_size_bytes),
+                "page_size_bytes must be a power of 2");
 
 public:
   io_uring_storage_engine() = default;
@@ -403,8 +407,8 @@ public:
         comp.op_type    = flux::Type::Fsync;
         comp.failed     = (cqe->res < 0);
 
-        if (FLUXIO_UNLIKELY(!cq_ring.push(std::move(comp)))) {
-          break;
+        while (FLUXIO_UNLIKELY(!cq_ring.push(std::move(comp)))) {
+          FLUXIO_PAUSE_CPU_INSTRUCTION;
         }
         io_uring_cqe_seen(&ring, cqe);
         continue;
@@ -437,8 +441,8 @@ public:
         }
       }
 
-      if (FLUXIO_UNLIKELY(!cq_ring.push(std::move(comp)))) {
-        break;
+      while (FLUXIO_UNLIKELY(!cq_ring.push(std::move(comp)))) {
+        FLUXIO_PAUSE_CPU_INSTRUCTION;
       }
       file_state[file_slot].free_page(local_page);
       io_uring_cqe_seen(&ring, cqe);
@@ -668,17 +672,25 @@ public:
     }
   }
 
+  // Flush partial buffer: zero-pads remaining space and dispatches to io_uring
   FLUXIO_ALWAYS_INLINE bool flush_stream(uint16_t file_slot) noexcept {
     if (FLUXIO_UNLIKELY(file_slot >= num_registered_files)) return false;
     auto &st = stream_states[file_slot];
     if (!st.active_buf || st.buf_pos == 0) return true;
 
+    // Pad unwritten remainder with zeros
     std::memset(static_cast<uint8_t*>(st.active_buf->data) + st.buf_pos, 0, page_size_bytes - st.buf_pos);
 
     if (FLUXIO_UNLIKELY(!submit_write_zero_copy(*st.active_buf, page_size_bytes, st.file_append_offset, st.file_append_offset))) {
       return false;
     }
     submit();
+
+    // Ensure the in-flight sector has completed writing to disk before CPU can mutate it again
+    if (initialized) {
+      io_uring_submit_and_wait(&ring, 1);
+      poll_completion();
+    }
     return true;
   }
 
@@ -695,12 +707,13 @@ public:
   FLUXIO_ALWAYS_INLINE bool close_file(uint16_t file_slot) noexcept {
     if (FLUXIO_UNLIKELY(file_slot >= num_registered_files)) return false;
     auto &st = stream_states[file_slot];
-    if (st.active_buf && st.buf_pos > 0) {
-      flush_stream(file_slot);
-      if (initialized) {
-        io_uring_submit_and_wait(&ring, 1);
-        poll_completion();
+    if (st.active_buf) {
+      if (st.buf_pos > 0) {
+        flush_stream(file_slot);
       }
+      release_buffer(*st.active_buf);
+      st.active_buf.reset();
+      st.buf_pos = 0;
     }
     truncate_to_logical_size(file_slot);
     return true;
